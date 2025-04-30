@@ -3,7 +3,9 @@ import type {
   SystemConnection, 
   RiskData, 
   RouteResponse, 
-  RouteJump 
+  RouteJump,
+  AlternativeRoute,
+  BaseRouteResponse
 } from '@shared/schema';
 
 interface GraphNode {
@@ -331,46 +333,56 @@ function constructRoute(
     };
   }
   
-  // Add alternatives
-  mainRoute.alternatives = [];
+  // Create typed alternatives array
+  const alternatives: AlternativeRoute[] = [];
   
   if (saferRoute) {
-    mainRoute.alternatives.push({
+    // Create safer alternative
+    const saferAlternative: AlternativeRoute = {
       name: "Safer Alternative",
       jumps: saferRoute.totalJumps,
       distance: saferRoute.totalDistance,
       risk: saferRoute.averageRisk,
-      route: saferRoute
-    });
+      route: saferRoute as BaseRouteResponse
+    };
+    alternatives.push(saferAlternative);
   }
   
   if (fasterRoute) {
-    mainRoute.alternatives.push({
+    // Create faster alternative
+    const fasterAlternative: AlternativeRoute = {
       name: "Faster Alternative",
       jumps: fasterRoute.totalJumps,
       distance: fasterRoute.totalDistance,
       risk: fasterRoute.averageRisk,
-      route: fasterRoute
-    });
+      route: fasterRoute as BaseRouteResponse
+    };
+    alternatives.push(fasterAlternative);
   }
   
   // If we couldn't generate different alternative routes, create simplified ones
-  if (mainRoute.alternatives.length === 0) {
-    mainRoute.alternatives = [
-      {
-        name: "Safer Alternative",
-        jumps: jumps.length + 2,
-        distance: parseFloat((totalDistance * 1.4).toFixed(1)),
-        risk: parseFloat((averageRisk * 0.4).toFixed(2))
-      },
-      {
-        name: "Faster Alternative",
-        jumps: Math.max(1, jumps.length - 1),
-        distance: parseFloat((totalDistance * 0.8).toFixed(1)),
-        risk: parseFloat(Math.min(0.98, averageRisk * 2).toFixed(2))
-      }
-    ];
+  if (alternatives.length === 0 && jumps.length > 0) {
+    // Simple safer route without full route details
+    const saferAlt: AlternativeRoute = {
+      name: "Safer Alternative",
+      jumps: jumps.length + 2,
+      distance: parseFloat((totalDistance * 1.4).toFixed(1)),
+      risk: parseFloat((averageRisk * 0.4).toFixed(2))
+    };
+    
+    // Simple faster route without full route details
+    const fasterAlt: AlternativeRoute = {
+      name: "Faster Alternative",
+      jumps: Math.max(1, jumps.length - 1),
+      distance: parseFloat((totalDistance * 0.8).toFixed(1)),
+      risk: parseFloat(Math.min(0.98, averageRisk * 2).toFixed(2))
+    };
+    
+    alternatives.push(saferAlt, fasterAlt);
   }
+  
+  // Add alternatives to the main route
+  mainRoute.alternatives = alternatives;
   
   return mainRoute;
 }

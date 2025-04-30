@@ -100,14 +100,19 @@ export const baseRouteResponseSchema = z.object({
   highRiskSections: z.array(highRiskSectionSchema).optional()
 });
 
-// Then define the full RouteResponseSchema with alternatives that may contain routes
-export const routeResponseSchema = baseRouteResponseSchema.extend({
-  alternatives: z.array(
-    alternativeRouteSchema.extend({
-      route: z.lazy(() => baseRouteResponseSchema).optional()
-    })
-  ).optional()
+// Define a complete alternative route with route data
+export const alternativeWithRouteSchema = alternativeRouteSchema.extend({
+  route: z.lazy(() => baseRouteResponseSchema).optional()
 });
+
+// Then define the full RouteResponseSchema with alternatives
+export const routeResponseSchema = baseRouteResponseSchema.extend({
+  alternatives: z.array(alternativeWithRouteSchema).optional()
+});
+
+// Export the types for use in implementation
+export type AlternativeRoute = z.infer<typeof alternativeWithRouteSchema>;
+export type BaseRouteResponse = z.infer<typeof baseRouteResponseSchema>;
 
 export type RouteResponse = z.infer<typeof routeResponseSchema>;
 
