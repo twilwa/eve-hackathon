@@ -259,56 +259,34 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
                 
                 // Handle clicking on an alternative route card
                 const handleAlternativeSelect = () => {
-                  if (onAlternativeRouteSelect) {
-                    // Check if we have a full route object available
-                    if (altRoute) {
-                      console.log("Selected alternative with route:", altRoute);
-                      onAlternativeRouteSelect(altRoute);
-                      
-                      // Show a toast notification
-                      toast({
-                        title: `Selected ${alt.name}`,
-                        description: `Now showing the ${alt.risk < 0.3 ? 'safer' : 'faster'} route option`
-                      });
-                    } else {
-                      // Log the issue and show an error toast
-                      console.log("Alternative route selected without route data:", alt);
-                      
-                      // If we have the main route, we can try to create a modified version of it
-                      if (route && route.jumps && route.jumps.length > 0) {
-                        console.log("Attempting to create alternative from main route");
-                        // Create a copy of the route with modified values
-                        const modifiedRoute = {
-                          ...route,
-                          averageRisk: alt.risk,
-                          totalJumps: alt.jumps,
-                          totalDistance: alt.distance
-                        };
-                        
-                        onAlternativeRouteSelect(modifiedRoute);
-                        
-                        toast({
-                          title: `Selected ${alt.name}`,
-                          description: `Showing approximated ${alt.name.toLowerCase()} route`
-                        });
-                      } else {
-                        toast({
-                          variant: "destructive",
-                          title: "Cannot select route",
-                          description: "Detailed route information is not available for this alternative"
-                        });
-                      }
-                    }
+                  if (altRoute && onAlternativeRouteSelect) {
+                    onAlternativeRouteSelect(altRoute);
+                    
+                    // Show a toast notification
+                    toast({
+                      title: `Selected ${alt.name}`,
+                      description: `Now showing the ${alt.risk < 0.3 ? 'safer' : 'faster'} route option`
+                    });
                   }
                 };
+                
+                // Determine if this is the fastest/safest possible route (for disabling)
+                const isExtremeSafeRoute = alt.name === "Safer Alternative" && alt.risk < 0.2;
+                const isExtremeFastRoute = alt.name === "Faster Alternative" && alt.risk > 0.9;
+                const isDisabled = !altRoute || isExtremeSafeRoute || isExtremeFastRoute;
                 
                 return (
                   <div 
                     key={index}
-                    className="bg-muted bg-opacity-30 rounded-lg p-4 cursor-pointer hover:bg-opacity-50 hover:bg-primary/5 transition-colors border border-transparent hover:border-primary/30"
-                    onClick={handleAlternativeSelect}
-                    style={{ opacity: altRoute ? 1 : 0.7 }}
-                    title={altRoute ? `Switch to ${alt.name}` : "Route data not available"}
+                    className={`bg-muted bg-opacity-30 rounded-lg p-4 ${!isDisabled ? 'cursor-pointer hover:bg-opacity-50 hover:bg-primary/5' : 'cursor-not-allowed'} transition-colors border border-transparent ${!isDisabled ? 'hover:border-primary/30' : ''}`}
+                    onClick={!isDisabled ? handleAlternativeSelect : undefined}
+                    style={{ opacity: isDisabled ? 0.5 : 1 }}
+                    title={
+                      isExtremeSafeRoute ? "This is already the safest possible route" : 
+                      isExtremeFastRoute ? "This is already the fastest possible route" : 
+                      !altRoute ? "Route data not available" : 
+                      `Switch to ${alt.name}`
+                    }
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">{alt.name}</span>

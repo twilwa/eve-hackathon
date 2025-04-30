@@ -17,6 +17,7 @@ export default function Home() {
   const [selectedRoute, setSelectedRoute] = useState<RouteResponse | null>(null);
   const [startSystem, setStartSystem] = useState<SolarSystem | null>(null);
   const [endSystem, setEndSystem] = useState<SolarSystem | null>(null);
+  const [riskAversion, setRiskAversion] = useState<number>(50); // Default to 50% balanced risk aversion
   const { toast } = useToast();
   
   // Fetch solar systems
@@ -126,6 +127,8 @@ export default function Home() {
               endSystem={endSystem}
               onStartSystemSelect={setStartSystem}
               onEndSystemSelect={setEndSystem}
+              riskAversion={riskAversion} 
+              onRiskAversionChange={setRiskAversion}
             />
           </div>
           
@@ -133,9 +136,9 @@ export default function Home() {
           <div className="lg:col-span-3 space-y-6">
             {/* Star Map */}
             <StarMap
-              systems={Array.isArray(systems) ? systems : []}
-              connections={Array.isArray(connections) ? connections : []}
-              riskData={Array.isArray(riskData) ? riskData : []}
+              systems={systems || []}
+              connections={connections || []}
+              riskData={riskData || []}
               selectedRoute={selectedRoute}
               isLoading={isCalculatingRoute}
               startSystem={startSystem}
@@ -147,47 +150,32 @@ export default function Home() {
             <RouteDetails 
               route={selectedRoute} 
               onAlternativeRouteSelect={(alternativeRoute) => {
-                // When an alternative route is selected, update the displayed route
+                // When an alternative route is selected, we need to:
+                // 1. Update the displayed route
+                // 2. Recalculate new alternative routes from this route
+                
+                // First, store the selected alternative as our current route 
                 setSelectedRoute(alternativeRoute);
                 
-                // Check if the route has full route data
-                if (alternativeRoute.jumps && alternativeRoute.jumps.length > 0) {
-                  // Find first and last jump to determine start and end systems
-                  const firstJump = alternativeRoute.jumps[0];
-                  const lastJump = alternativeRoute.jumps[alternativeRoute.jumps.length - 1];
+                // Now, generate new alternatives by calling the API with the same parameters
+                // but with a different risk aversion based on which alternative was selected
+                if (startSystem && endSystem) {
+                  const isSelectingSaferRoute = alternativeRoute.averageRisk < (selectedRoute?.averageRisk || 0.5);
+                  const newRiskAversion = isSelectingSaferRoute ? 
+                    Math.min(100, riskAversion + 20) : // Increase risk aversion (safer)
+                    Math.max(0, riskAversion - 20);    // Decrease risk aversion (faster)
                   
-                  // Find the corresponding start and end systems
-                  const systemsArray = Array.isArray(systems) ? systems : [];
-                  const newStartSystem = systemsArray.find((s: SolarSystem) => s.id === firstJump.fromSystemId);
-                  const newEndSystem = systemsArray.find((s: SolarSystem) => s.id === lastJump.toSystemId);
+                  // Update the risk aversion slider value
+                  setRiskAversion(newRiskAversion);
                   
-                  if (newStartSystem && newEndSystem) {
-                    // Update the start and end systems to match the new route
-                    setStartSystem(newStartSystem);
-                    setEndSystem(newEndSystem);
-                    
-                    // Don't recalculate the route immediately - just set the state
-                    // This will avoid flicker and let us display the alternative route
-                    
-                    // Only recalculate if the route doesn't have alternatives of its own
-                    if (!alternativeRoute.alternatives || alternativeRoute.alternatives.length === 0) {
-                      console.log("No alternatives in selected route, calculating new ones");
-                      // Use a different risk aversion based on which alternative type was selected
-                      const riskValue = alternativeRoute.averageRisk < 0.4 ? 0.8 : 0.2;
-                      
-                      calculateRouteMutation({
-                        startSystemId: newStartSystem.id,
-                        endSystemId: newEndSystem.id,
-                        riskAversion: riskValue
-                      });
-                    }
-                  }
+                  // Recalculate the route with new parameters
+                  handleCalculateRoute(startSystem, endSystem, newRiskAversion);
+                  
+                  toast({
+                    title: isSelectingSaferRoute ? "Safer Route Selected" : "Faster Route Selected",
+                    description: `Risk aversion adjusted to ${newRiskAversion}%. Looking for even ${isSelectingSaferRoute ? 'safer' : 'faster'} alternatives.`
+                  });
                 }
-                
-                toast({
-                  title: "Alternative Route Selected",
-                  description: `Showing the alternative route with ${alternativeRoute.totalJumps} jumps and ${alternativeRoute.averageRisk.toFixed(2)} risk.`
-                });
               }}
             />
           </div>
