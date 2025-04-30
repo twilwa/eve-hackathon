@@ -1,0 +1,144 @@
+<context>
+# Overview  
+EVE Star Map is an advanced navigation tool for EVE Online players, providing a sophisticated route planning system with risk assessment capabilities. This web application helps players navigate the complex universe of EVE Online by visualizing star systems, calculating optimal routes, and offering risk analysis to enhance player safety during travel.
+
+# Core Features  
+1. Interactive Star Map Visualization
+   - Dynamic, zoomable visualization of EVE Online's star systems
+   - Visual representation of connections between systems
+   - Risk-based coloring and visual cues for safer navigation
+
+2. Advanced Route Planning
+   - Pathfinding algorithms with risk-awareness capabilities
+   - Multiple routing options based on user preferences
+   - Route optimization for different travel priorities (safety vs. speed)
+
+3. Risk Assessment Framework
+   - Real-time risk scoring for star systems and routes
+   - Visual risk indicators through color coding
+   - Alternative route suggestions based on risk profiles
+
+4. User-friendly Interface
+   - Intuitive system selection and route plotting
+   - Detailed route information with jump-by-jump breakdown
+   - Interactive controls for map manipulation and filtering
+</context>
+<PRD>
+# Technical Architecture  
+## System Components
+- Frontend Client: React-based web application with TypeScript and D3.js for visualization
+- Backend Server: Node.js with Express for API and data processing
+- Database: PostgreSQL with Drizzle ORM for data persistence
+- Visualization Engine: D3.js for rendering the interactive star map
+- Pathfinding System: Custom algorithms for route calculation with risk awareness
+- Caching Layer: Node-cache for performance optimization
+
+## Data Models
+- Solar Systems: Basic information about star systems (coordinates, name, class, etc.)
+- System Connections: Jump points between star systems (gates, wormholes)
+- Risk Data: Security metrics and risk scores for each system
+- Routes: Calculated paths with associated metadata (jumps, risk scores, alternatives)
+- User Preferences: Saved routes and display preferences (future enhancement)
+
+## APIs and Integrations
+- System Data API: Endpoints for retrieving solar system information
+- Connections API: Data about system interconnections
+- Risk Assessment API: Security status and risk calculations
+- Route Calculation API: Pathfinding with various parameters
+- EVE Online Data Integration: System for keeping map data current (future enhancement)
+
+## Infrastructure Requirements
+- Responsive web hosting for multi-device compatibility
+- Data storage for system, connection, and risk information
+- Computational resources for complex pathfinding operations
+- Memory caching for frequently accessed data
+- CDN for static assets and resource delivery
+
+# Development Roadmap  
+## MVP Phase
+- Interactive star map rendering with basic system visualization
+- System data retrieval and display
+- Basic route calculation between two points
+- Simple risk visualization through color coding
+- Core UI components for system selection and route display
+
+## Enhancement Phase
+- Advanced pathfinding algorithms with multiple routing options
+- Detailed risk assessment with visualization improvements
+- Alternative route suggestions with comparative analysis
+- Performance optimizations for large map rendering
+- User interface refinements and responsive design improvements
+
+## Advanced Features Phase
+- User accounts and saved route management
+- Real-time data updates from EVE Online API
+- Custom filters and display options
+- Advanced analytics for route comparison
+- Mobile optimization for on-the-go planning
+
+# Logical Dependency Chain
+1. Core Data Structure
+   - Solar system data model implementation
+   - Connection data structure setup
+   - Risk scoring framework
+
+2. Visualization Framework
+   - D3.js integration for map rendering
+   - Coordinate calculation and system positioning
+   - Basic interaction handlers
+
+3. Pathfinding System
+   - Basic routing algorithm implementation
+   - Risk-aware path calculation logic
+   - Route optimization based on parameters
+
+4. User Interface
+   - System selection components
+   - Route display and details panel
+   - Interactive controls (zoom, pan, reset)
+
+5. Risk Assessment
+   - Risk data integration
+   - Visual risk indicators
+   - Route comparison based on risk profiles
+
+6. Performance Optimizations
+   - Data caching mechanisms
+   - Rendering optimizations
+   - Response time improvements
+
+# Risks and Mitigations  
+## Technical Challenges
+- Graph visualization performance: Implement efficient rendering with D3.js and canvas
+- Complex pathfinding with multiple parameters: Develop modular algorithm architecture
+- Real-time risk assessment: Create caching system for frequently accessed calculations
+
+## MVP Scope
+- Focus on core navigation functionality first
+- Limit initial system count for performance during development
+- Emphasize usability over feature completeness in early versions
+
+## Resource Constraints
+- Computational demands for large star maps: Implement progressive loading and level-of-detail rendering
+- Data freshness concerns: Develop incremental update system
+- Browser performance limitations: Optimize rendering through WebGL or canvas fallbacks
+
+# Appendix  
+## Technical Stack Details
+- Frontend: React, TypeScript, D3.js, TailwindCSS, ShadcnUI
+- Backend: Node.js, Express, WebSockets for real-time updates
+- Data Management: PostgreSQL, Drizzle ORM, node-cache
+- Visualization: D3.js, SVG, Canvas rendering (for performance)
+- Pathfinding: Custom graph algorithms with risk weighting
+
+## User Personas
+- Solo Explorer: Looking for the safest route through dangerous space
+- Fleet Commander: Planning efficient movement for multiple ships
+- Trader: Seeking optimal routes for hauling goods between systems
+- New Player: Needs clear visualization of safer travel options
+
+## References
+- EVE Online API documentation
+- Graph visualization best practices
+- Pathfinding algorithm implementations
+</PRD> 
