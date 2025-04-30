@@ -6,7 +6,7 @@ import type { RouteResponse } from "@shared/schema";
  * @param filename Optional custom filename (defaults to route-{fromSystemId}-to-{endSystemId}.json)
  */
 export function downloadRouteAsJson(route: RouteResponse, filename?: string): void {
-  if (!route) return;
+  if (!route) {
   
   // Get start and end systems from first and last jump
   const firstJump = route.jumps[0];
