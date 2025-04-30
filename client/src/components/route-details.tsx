@@ -270,13 +270,23 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
                   }
                 };
                 
+                // Determine if this is the fastest/safest possible route (for disabling)
+                const isExtremeSafeRoute = alt.name === "Safer Alternative" && alt.risk < 0.2;
+                const isExtremeFastRoute = alt.name === "Faster Alternative" && alt.risk > 0.9;
+                const isDisabled = !altRoute || isExtremeSafeRoute || isExtremeFastRoute;
+                
                 return (
                   <div 
                     key={index}
-                    className="bg-muted bg-opacity-30 rounded-lg p-4 cursor-pointer hover:bg-opacity-50 hover:bg-primary/5 transition-colors border border-transparent hover:border-primary/30"
-                    onClick={altRoute ? handleAlternativeSelect : undefined}
-                    style={{ opacity: altRoute ? 1 : 0.7 }}
-                    title={altRoute ? `Switch to ${alt.name}` : "Route data not available"}
+                    className={`bg-muted bg-opacity-30 rounded-lg p-4 ${!isDisabled ? 'cursor-pointer hover:bg-opacity-50 hover:bg-primary/5' : 'cursor-not-allowed'} transition-colors border border-transparent ${!isDisabled ? 'hover:border-primary/30' : ''}`}
+                    onClick={!isDisabled ? handleAlternativeSelect : undefined}
+                    style={{ opacity: isDisabled ? 0.5 : 1 }}
+                    title={
+                      isExtremeSafeRoute ? "This is already the safest possible route" : 
+                      isExtremeFastRoute ? "This is already the fastest possible route" : 
+                      !altRoute ? "Route data not available" : 
+                      `Switch to ${alt.name}`
+                    }
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">{alt.name}</span>
