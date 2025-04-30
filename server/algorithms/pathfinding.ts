@@ -381,9 +381,8 @@ function constructRoute(
     alternatives.push(saferAlt, fasterAlt);
   }
   
-  // Cast the alternatives array to the right type
-  // This fixes typing issues with the alternatives array
-  mainRoute.alternatives = alternatives as any;
+  // Add alternatives to the main route
+  mainRoute.alternatives = alternatives;
   
   return mainRoute;
 }

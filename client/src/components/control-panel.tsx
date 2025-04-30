@@ -35,8 +35,6 @@ interface ControlPanelProps {
   endSystem?: SolarSystem | null;
   onStartSystemSelect?: (system: SolarSystem | null) => void;
   onEndSystemSelect?: (system: SolarSystem | null) => void;
-  riskAversion?: number; // Add risk aversion prop that can be controlled from parent
-  onRiskAversionChange?: (value: number) => void; // Add callback for risk aversion changes
 }
 
 export function ControlPanel({ 
@@ -45,22 +43,16 @@ export function ControlPanel({
   startSystem: externalStartSystem, 
   endSystem: externalEndSystem,
   onStartSystemSelect,
-  onEndSystemSelect,
-  riskAversion: externalRiskAversion,
-  onRiskAversionChange
+  onEndSystemSelect
 }: ControlPanelProps) {
   const [startSystemSearch, setStartSystemSearch] = useState("");
   const [endSystemSearch, setEndSystemSearch] = useState("");
   const [localStartSystem, setLocalStartSystem] = useState<SolarSystem | null>(null);
   const [localEndSystem, setLocalEndSystem] = useState<SolarSystem | null>(null);
-  const [localRiskAversion, setLocalRiskAversion] = useState(50);
   
   // Determine which start system to use (external or local)
   const startSystemSelected = externalStartSystem !== undefined ? externalStartSystem : localStartSystem;
   const endSystemSelected = externalEndSystem !== undefined ? externalEndSystem : localEndSystem;
-  
-  // Determine which risk aversion value to use (external or local)
-  const riskAversion = externalRiskAversion !== undefined ? externalRiskAversion : localRiskAversion;
   
   // Set local start system and notify parent if handler provided
   const setStartSystemSelected = (system: SolarSystem | null) => {
@@ -77,14 +69,7 @@ export function ControlPanel({
       onEndSystemSelect(system);
     }
   };
-  
-  // Handle risk aversion changes with parent notification
-  const handleRiskAversionChange = (value: number) => {
-    setLocalRiskAversion(value);
-    if (onRiskAversionChange) {
-      onRiskAversionChange(value);
-    }
-  };
+  const [riskAversion, setRiskAversion] = useState(50);
   const [showRiskHeatmap, setShowRiskHeatmap] = useState(true);
   const [showGateTypes, setShowGateTypes] = useState(true);
   const [animateRoute, setAnimateRoute] = useState(true);
@@ -286,7 +271,7 @@ export function ControlPanel({
               max={100}
               step={1}
               value={[riskAversion]}
-              onValueChange={(value) => handleRiskAversionChange(value[0])}
+              onValueChange={(value) => setRiskAversion(value[0])}
               className="risk-slider"
             />
             <div className="flex justify-between text-xs text-muted-foreground mt-1">
