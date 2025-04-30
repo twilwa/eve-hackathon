@@ -133,9 +133,9 @@ export default function Home() {
           <div className="lg:col-span-3 space-y-6">
             {/* Star Map */}
             <StarMap
-              systems={systems || []}
-              connections={connections || []}
-              riskData={riskData || []}
+              systems={Array.isArray(systems) ? systems : []}
+              connections={Array.isArray(connections) ? connections : []}
+              riskData={Array.isArray(riskData) ? riskData : []}
               selectedRoute={selectedRoute}
               isLoading={isCalculatingRoute}
               startSystem={startSystem}
@@ -157,8 +157,9 @@ export default function Home() {
                   const lastJump = alternativeRoute.jumps[alternativeRoute.jumps.length - 1];
                   
                   // Find the corresponding start and end systems
-                  const newStartSystem = systems?.find(s => s.id === firstJump.fromSystemId);
-                  const newEndSystem = systems?.find(s => s.id === lastJump.toSystemId);
+                  const systemsArray = Array.isArray(systems) ? systems : [];
+                  const newStartSystem = systemsArray.find((s: SolarSystem) => s.id === firstJump.fromSystemId);
+                  const newEndSystem = systemsArray.find((s: SolarSystem) => s.id === lastJump.toSystemId);
                   
                   if (newStartSystem && newEndSystem) {
                     // Update the start and end systems to match the new route
@@ -171,7 +172,8 @@ export default function Home() {
                       startSystemId: newStartSystem.id,
                       endSystemId: newEndSystem.id,
                       // Use a different risk aversion based on which alternative was selected
-                      riskAversion: alternativeRoute.averageRisk < 0.4 ? 80 : 20 // High number = safety priority
+                      // Values must be between 0-1: higher values prioritize safety (less risk)
+                      riskAversion: alternativeRoute.averageRisk < 0.4 ? 0.8 : 0.2
                     });
                   }
                 }
