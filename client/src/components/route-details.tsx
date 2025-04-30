@@ -23,9 +23,10 @@ import type { RouteResponse } from "@shared/schema";
 
 interface RouteDetailsProps {
   route: RouteResponse | null;
+  onAlternativeRouteSelect?: (route: RouteResponse) => void;
 }
 
-export function RouteDetails({ route }: RouteDetailsProps) {
+export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsProps) {
   const { toast } = useToast();
   
   // No route to display
@@ -254,11 +255,28 @@ export function RouteDetails({ route }: RouteDetailsProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {route.alternatives.map((alt, index) => {
                 const riskCategory = getRiskCategory(alt.risk);
+                const altRoute = alt.route ? alt.route : null;
+                
+                // Handle clicking on an alternative route card
+                const handleAlternativeSelect = () => {
+                  if (altRoute && onAlternativeRouteSelect) {
+                    onAlternativeRouteSelect(altRoute);
+                    
+                    // Show a toast notification
+                    toast({
+                      title: `Selected ${alt.name}`,
+                      description: `Now showing the ${alt.risk < 0.3 ? 'safer' : 'faster'} route option`
+                    });
+                  }
+                };
                 
                 return (
                   <div 
                     key={index}
-                    className="bg-muted bg-opacity-30 rounded-lg p-4 cursor-pointer hover:bg-opacity-40 transition-colors"
+                    className="bg-muted bg-opacity-30 rounded-lg p-4 cursor-pointer hover:bg-opacity-50 hover:bg-primary/5 transition-colors border border-transparent hover:border-primary/30"
+                    onClick={altRoute ? handleAlternativeSelect : undefined}
+                    style={{ opacity: altRoute ? 1 : 0.7 }}
+                    title={altRoute ? `Switch to ${alt.name}` : "Route data not available"}
                   >
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">{alt.name}</span>

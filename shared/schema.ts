@@ -91,7 +91,8 @@ export const routeResponseSchema = z.object({
     name: z.string(),
     jumps: z.number(),
     distance: z.number(),
-    risk: z.number()
+    risk: z.number(),
+    route: z.lazy(() => routeResponseSchema).optional()
   })).optional()
 });
 
