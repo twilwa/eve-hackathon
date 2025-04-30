@@ -102,7 +102,7 @@ app.use((req, res, next) => {
 					serverInstance.once("listening", onListening);
 
 					const opts: net.ListenOptions = { port, host };
-					if (process.platform === "linux") opts.reusePort = true; // only where it works
+					if (process.platform === "linux") {
 					serverInstance.listen(opts);
 				});
 				// If the promise resolved, listen was successful
