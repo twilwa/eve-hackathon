@@ -142,9 +142,17 @@ export function findOptimalRoute(
   while (openSet.length > 0) {
     // Sort by f-cost (g + h) and pick lowest
     openSet.sort((a, b) => {
-      // f-cost is weighted by risk aversion
-      const fCostA = a.gCost + a.hCost + (a.risk * riskAversion * 10);
-      const fCostB = b.gCost + b.hCost + (b.risk * riskAversion * 10);
+      // Normalize risk aversion to a 0-1 scale
+      const riskWeight = riskAversion / 100;
+      const distanceWeight = 1 - riskWeight;
+      
+      // Calculate weighted costs:
+      // - When riskAversion is 0: only distance matters
+      // - When riskAversion is 100: risk is heavily prioritized
+      // - In between: balanced approach
+      const fCostA = (distanceWeight * (a.gCost + a.hCost)) + (riskWeight * a.risk * 10000);
+      const fCostB = (distanceWeight * (b.gCost + b.hCost)) + (riskWeight * b.risk * 10000);
+      
       return fCostA - fCostB;
     });
     
@@ -185,8 +193,14 @@ export function findOptimalRoute(
       // Check if this node is already in open set with a better path
       const existingNode = openSet.find(node => node.systemId === connection.targetId);
       if (existingNode) {
-        const existingFCost = existingNode.gCost + existingNode.hCost + (existingNode.risk * riskAversion * 10);
-        const newFCost = gCost + hCost + (risk * riskAversion * 10);
+        // Use the same weighting logic as in the sorting function
+        const riskWeight = riskAversion / 100;
+        const distanceWeight = 1 - riskWeight;
+        
+        const existingFCost = (distanceWeight * (existingNode.gCost + existingNode.hCost)) + 
+                             (riskWeight * existingNode.risk * 10000);
+        const newFCost = (distanceWeight * (gCost + hCost)) + 
+                        (riskWeight * risk * 10000);
         
         if (newFCost < existingFCost) {
           // Update existing node with better path
