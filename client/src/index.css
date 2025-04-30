@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 10% 3.9%;
+  --foreground: 240 10% 95%;
+  
+  --muted: 240 10% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  
+  --popover: 240 10% 3.9%;
+  --popover-foreground: 240 10% 95%;
+  
+  --card: 30 10% 10%;
+  --card-foreground: 0 0% 98%;
+  
+  --border: 240 10% 15.9%;
+  --input: 240 10% 15.9%;
+  
+  --primary: 180 65% 55%;
+  --primary-foreground: 180 10% 10%;
+  
+  --secondary: 240 10% 15.9%;
+  --secondary-foreground: 0 0% 98%;
+  
+  --accent: 240 10% 15.9%;
+  --accent-foreground: 0 0% 98%;
+  
+  --destructive: 0 62.8% 40.6%;
+  --destructive-foreground: 0 0% 98%;
+  
+  --ring: 240 4.9% 83.9%;
+  
+  --safe: 142 76% 55%;
+  --warning: 35 80% 60%;
+  --danger: 0 80% 60%;
+  
+  --radius: 0.5rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+  }
+}
+
+/* Custom theme specific styles */
+.star-map-container {
+  position: relative;
+  min-height: 500px;
+  height: calc(100vh - 250px);
+}
+
+.star-system {
+  transition: all 0.3s ease;
+}
+
+.star-system:hover {
+  filter: brightness(1.5);
+  cursor: pointer;
+}
+
+.route-path {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: dash 2s linear forwards;
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.risk-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary));
+  border-radius: 4px;
+}
+
+.bg-space-nebula {
+  background-image: url('https://images.unsplash.com/photo-1548827752-9f0dcd9a6e78?q=80&w=1470&auto=format&fit=crop');
+  background-size: cover;
+  background-position: center;
+  opacity: 0.2;
+}
+
+.bg-glow {
+  filter: drop-shadow(0 0 15px hsla(var(--primary), 0.3));
+}
+
+.text-glow {
+  text-shadow: 0 0 10px hsla(var(--primary), 0.6);
+}
+
+.risk-safe {
+  color: hsl(var(--safe));
+}
+
+.risk-warning {
+  color: hsl(var(--warning));
+}
+
+.risk-danger {
+  color: hsl(var(--danger));
+}
+
+.bg-risk-safe {
+  background-color: hsl(var(--safe));
+}
+
+.bg-risk-warning {
+  background-color: hsl(var(--warning));
+}
+
+.bg-risk-danger {
+  background-color: hsl(var(--danger));
+}
