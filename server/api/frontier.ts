@@ -13,25 +13,28 @@ export async function fetchSolarSystems(): Promise<SolarSystem[]> {
   try {
     // Fetch from real EVE Frontier API
     const response = await apiRequest('GET', `${API_BASE_URL}/v2/solarsystems`);
-    const data = await response.json() as Record<string, any>;
+    const responseData = await response.json() as { data: any[] };
     
-    // Convert the object-based response to an array of systems
-    const systems: SolarSystem[] = [];
+    // API returns { data: [...systems] }
+    const systemsData = responseData.data;
     
-    for (const systemId in data) {
-      const system = data[systemId];
-      systems.push({
-        id: parseInt(systemId),
-        name: system.solarSystemName,
-        position: {
-          x: system.location.x,
-          y: system.location.y,
-          z: system.location.z,
-        },
-        securityStatus: system.securityStatus || 0,
-        connections: system.connections || []
-      });
+    if (!Array.isArray(systemsData)) {
+      throw new Error('Expected array of systems in API response');
     }
+    
+    // Map the API response to our schema
+    const systems: SolarSystem[] = systemsData.map(system => ({
+      id: system.id,
+      name: system.name,
+      position: {
+        x: system.location?.x || 0,
+        y: system.location?.y || 0,
+        z: system.location?.z || 0,
+      },
+      securityStatus: system.securityStatus || 0,
+      // For now, we'll init with empty connections - we'll build these later
+      connections: []
+    }));
     
     console.log(`Fetched ${systems.length} solar systems from EVE Frontier API`);
     return systems;
@@ -123,9 +126,17 @@ export async function fetchKillmailData(): Promise<RiskData[]> {
     let killmailData: any[] = [];
     
     try {
-      // Attempt to fetch killmail data
-      response = await apiRequest('GET', `${API_BASE_URL}/killmails`);
-      killmailData = await response.json() as any[];
+      // Attempt to fetch killmail data - the endpoint might be /v2/killmails or /killmails
+      try {
+        response = await apiRequest('GET', `${API_BASE_URL}/v2/killmails`);
+        const responseData = await response.json();
+        killmailData = responseData.data || [];
+      } catch (v2Error) {
+        console.log('Trying fallback killmail endpoint...');
+        response = await apiRequest('GET', `${API_BASE_URL}/killmails`);
+        const responseData = await response.json();
+        killmailData = Array.isArray(responseData) ? responseData : (responseData.data || []);
+      }
     } catch (killmailError) {
       console.warn('Could not fetch killmail data, generating random risk data:', killmailError);
     }
@@ -135,10 +146,17 @@ export async function fetchKillmailData(): Promise<RiskData[]> {
     
     // If we have killmail data, use it
     if (killmailData.length > 0) {
+      console.log(`Processing ${killmailData.length} killmails from API`);
+      
       // Aggregate killmail data by system
       killmailData.forEach((killmail: any) => {
-        const systemId = killmail.solar_system_id;
-        const timestamp = killmail.killmail_time;
+        // Adapt to the API's killmail structure
+        const systemId = killmail.solar_system_id || killmail.systemId;
+        const timestamp = killmail.killmail_time || killmail.timestamp || new Date().toISOString();
+        
+        if (!systemId) {
+          return; // Skip invalid entries
+        }
         
         if (!systemRiskMap.has(systemId)) {
           systemRiskMap.set(systemId, { kills: 0, timestamp });
@@ -205,31 +223,70 @@ export async function fetchSmartGates(): Promise<SystemConnection[]> {
     
     // Try to fetch smart assembly data from EVE Frontier API
     try {
-      const response = await apiRequest('GET', `${API_BASE_URL}/smart-assemblies`);
-      const assemblies = await response.json() as any[];
-      
-      // Filter for smart gates
-      const smartGates = assemblies.filter((assembly: any) => 
-        assembly.type === 'SmartGate' || assembly.name?.toLowerCase().includes('gate')
-      );
-      
-      if (smartGates.length > 0) {
-        // Convert to system connections
-        const smartConnections = smartGates.map((gate: any) => ({
-          sourceId: gate.source_system_id || gate.system_id,
-          targetId: gate.destination_system_id || gate.linked_system_id,
-          distance: calculateDistance(
-            gate.position || { x: 0, y: 0, z: 0 },
-            gate.destination_position || { x: 0, y: 0, z: 0 }
-          ),
-          gateType: 'Smart Gate'
-        })).filter((conn) => 
-          // Filter out connections with missing source or target
-          conn.sourceId && conn.targetId
+      // First try v2 endpoint
+      try {
+        const response = await apiRequest('GET', `${API_BASE_URL}/v2/smart-assemblies`);
+        const responseData = await response.json();
+        const assemblies = responseData.data || [];
+        
+        // Filter for smart gates
+        const smartGates = assemblies.filter((assembly: any) => 
+          assembly.type === 'SmartGate' || 
+          assembly.name?.toLowerCase().includes('gate') ||
+          assembly.assemblyType?.toLowerCase().includes('gate')
         );
         
-        console.log(`Added ${smartConnections.length} smart gate connections`);
-        return smartConnections;
+        if (smartGates.length > 0) {
+          // Convert to system connections
+          const smartConnections = smartGates.map((gate: any) => ({
+            sourceId: gate.source_system_id || gate.sourceSystemId || gate.system_id || gate.systemId,
+            targetId: gate.destination_system_id || gate.destinationSystemId || gate.linked_system_id || gate.linkedSystemId,
+            distance: calculateDistance(
+              gate.position || gate.location || { x: 0, y: 0, z: 0 },
+              gate.destination_position || gate.destinationLocation || { x: 0, y: 0, z: 0 }
+            ),
+            gateType: 'Smart Gate'
+          })).filter((conn) => 
+            // Filter out connections with missing source or target
+            conn.sourceId && conn.targetId
+          );
+          
+          console.log(`Added ${smartConnections.length} smart gate connections from v2 API`);
+          return smartConnections;
+        }
+      } catch (v2Error) {
+        console.log('Trying fallback smart-assemblies endpoint');
+        
+        // Try fallback endpoint
+        const response = await apiRequest('GET', `${API_BASE_URL}/smart-assemblies`);
+        const responseData = await response.json();
+        const assemblies = Array.isArray(responseData) ? responseData : (responseData.data || []);
+        
+        // Filter for smart gates
+        const smartGates = assemblies.filter((assembly: any) => 
+          assembly.type === 'SmartGate' || 
+          assembly.name?.toLowerCase().includes('gate') ||
+          assembly.assemblyType?.toLowerCase().includes('gate')
+        );
+        
+        if (smartGates.length > 0) {
+          // Convert to system connections
+          const smartConnections = smartGates.map((gate: any) => ({
+            sourceId: gate.source_system_id || gate.sourceSystemId || gate.system_id || gate.systemId,
+            targetId: gate.destination_system_id || gate.destinationSystemId || gate.linked_system_id || gate.linkedSystemId,
+            distance: calculateDistance(
+              gate.position || gate.location || { x: 0, y: 0, z: 0 },
+              gate.destination_position || gate.destinationLocation || { x: 0, y: 0, z: 0 }
+            ),
+            gateType: 'Smart Gate'
+          })).filter((conn) => 
+            // Filter out connections with missing source or target
+            conn.sourceId && conn.targetId
+          );
+          
+          console.log(`Added ${smartConnections.length} smart gate connections from API`);
+          return smartConnections;
+        }
       }
     } catch (smartGateError) {
       console.warn('Could not fetch smart assembly data:', smartGateError);
