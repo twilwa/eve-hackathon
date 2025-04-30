@@ -116,11 +116,13 @@ export function StarMap({
         .attr("opacity", opacity);
     });
     
+    // Create a route group regardless of whether there's a route
+    // This avoids the undefined variable error
+    const routeGroup = svg.append("g")
+      .attr("class", "route");
+      
     // Draw selected route if available
     if (selectedRoute && selectedRoute.jumps.length > 0) {
-      const routeGroup = svg.append("g")
-        .attr("class", "route");
-      
       // Build route path
       const routeSystemIds = selectedRoute.jumps.map(jump => [jump.fromSystemId, jump.toSystemId])
         .flat()
