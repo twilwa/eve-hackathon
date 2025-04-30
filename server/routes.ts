@@ -18,6 +18,7 @@ import {
 } from "./api/frontier";
 import { findOptimalRoute } from "./algorithms/pathfinding";
 import NodeCache from "node-cache";
+import jobsRouter from "./api/jobs";
 
 // Cache for storing data with TTL
 const cache = new NodeCache({
@@ -27,6 +28,9 @@ const cache = new NodeCache({
 
 export async function registerRoutes(app: Express): Promise<Server> {
 	const httpServer = createServer(app);
+
+	// Register Jobs API router
+	app.use("/api/jobs", jobsRouter);
 
 	// Health check endpoint
 	app.get("/api/health", (req: Request, res: Response) => {

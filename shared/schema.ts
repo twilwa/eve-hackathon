@@ -1,4 +1,5 @@
 import { pgTable, text, serial, integer, boolean, real, timestamp } from "drizzle-orm/pg-core";
+import { sqliteTable, text as sqliteText, integer as sqliteInteger, real as sqliteReal } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -122,3 +123,56 @@ export const systemSearchSchema = z.object({
 });
 
 export type SystemSearch = z.infer<typeof systemSearchSchema>;
+
+// Job status enum
+export const JobStatus = {
+  OPEN: 'open',
+  CLAIMED: 'claimed',
+  COMPLETED: 'completed',
+  EXPIRED: 'expired'
+} as const;
+
+export type JobStatusType = typeof JobStatus[keyof typeof JobStatus];
+
+// Job schema for SQLite
+export const jobs = sqliteTable('jobs', {
+  id: sqliteInteger('id').primaryKey({ autoIncrement: true }),
+  fromSystemId: sqliteInteger('from_system_id').notNull(),
+  fromSystemName: sqliteText('from_system_name').notNull(),
+  toSystemId: sqliteInteger('to_system_id').notNull(),
+  toSystemName: sqliteText('to_system_name').notNull(),
+  reward: sqliteReal('reward').notNull(),
+  status: sqliteText('status').notNull().default(JobStatus.OPEN),
+  createdAt: sqliteText('created_at').notNull().$defaultFn(() => new Date().toISOString()),
+  expiresAt: sqliteText('expires_at').notNull(),
+  claimedBy: sqliteText('claimed_by'),
+  claimedAt: sqliteText('claimed_at'),
+  completedAt: sqliteText('completed_at'),
+  proofJson: sqliteText('proof_json'),
+});
+
+// Job insert schema with validation
+export const jobInsertSchema = createInsertSchema(jobs, {
+  fromSystemId: (schema) => schema.fromSystemId.positive(),
+  toSystemId: (schema) => schema.toSystemId.positive(),
+  reward: (schema) => schema.reward.positive(),
+  expiresAt: (schema) => schema.expiresAt.refine(
+    (date) => new Date(date) > new Date(),
+    {
+      message: "Expiry time must be in the future",
+    }
+  ),
+}).omit({ id: true, claimedBy: true, claimedAt: true, completedAt: true, proofJson: true, status: true });
+
+export const jobClaimSchema = z.object({
+  scoutPubKey: z.string().min(1),
+});
+
+export const jobCompleteSchema = z.object({
+  proofJson: z.string().min(1),
+});
+
+export type JobInsert = z.infer<typeof jobInsertSchema>;
+export type Job = typeof jobs.$inferSelect;
+export type JobClaim = z.infer<typeof jobClaimSchema>;
+export type JobComplete = z.infer<typeof jobCompleteSchema>;

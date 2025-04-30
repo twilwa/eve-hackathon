@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Bookmark, Share2, Download, AlertTriangle } from "lucide-react";
 import { getRiskCategory } from "@/lib/pathfinding";
 import { useToast } from "@/hooks/use-toast";
+import { downloadRouteAsJson } from "@/lib/export";
 import type { RouteResponse } from "@shared/schema";
 
 interface RouteDetailsProps {
@@ -78,19 +79,8 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
   };
   
   const handleExportRoute = () => {
-    // Create export data
-    const exportData = JSON.stringify(route, null, 2);
-    const blob = new Blob([exportData], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    
-    // Create temporary link and download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `route-${route.jumps[0].fromSystemName}-to-${route.jumps[route.jumps.length - 1].toSystemName}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Use the downloadRouteAsJson utility function
+    downloadRouteAsJson(route);
     
     toast({
       title: "Route Exported",

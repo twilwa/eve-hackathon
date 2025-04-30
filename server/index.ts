@@ -3,6 +3,8 @@ import http from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import * as net from "node:net";
+import { initializeDatabase } from "./db";
+import { jobExpiryService } from "./services/job-expiry";
 
 const app = express();
 app.use(express.json());
@@ -40,7 +42,19 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+	// Initialize database before registering routes
+	try {
+		await initializeDatabase();
+		log("Database initialized successfully");
+	} catch (error) {
+		log("Database initialization failed:", error);
+		process.exit(1);
+	}
+
 	await registerRoutes(app);
+
+	// Start job expiry service
+	jobExpiryService.start();
 
 	app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 		const status = err.status || err.statusCode || 500;
@@ -128,4 +142,24 @@ app.use((req, res, next) => {
 		);
 		process.exit(1);
 	}
+
+	// Graceful shutdown
+	const gracefulShutdown = () => {
+		log("Shutting down gracefully...");
+		jobExpiryService.stop();
+		server.close(() => {
+			log("Server closed");
+			process.exit(0);
+		});
+		
+		// Force close after 10 seconds
+		setTimeout(() => {
+			log("Forcing shutdown after timeout");
+			process.exit(1);
+		}, 10000);
+	};
+
+	// Handle termination signals
+	process.on("SIGTERM", gracefulShutdown);
+	process.on("SIGINT", gracefulShutdown);
 })();
