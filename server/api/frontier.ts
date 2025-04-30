@@ -124,20 +124,20 @@ export async function fetchSystemConnections(): Promise<SystemConnection[]> {
       
       // For each system, find its closest neighbors
       for (const system of systems) {
-        // Get potential nearby systems using our grid
-        const potentialNeighbors = getNearbySystemsFromGrid(system);
+        // Calculate distances to ALL other systems instead of just grid neighbors
+        // This ensures we always have connections even if the grid approach doesn't work
+        const allOtherSystems = systems.filter(s => s.id !== system.id);
         
-        // Calculate exact distances to each potential neighbor
-        const neighborsWithDistances = potentialNeighbors.map(neighbor => ({
+        const neighborsWithDistances = allOtherSystems.map(neighbor => ({
           system: neighbor,
           distance: calculateDistance(system.position, neighbor.position)
         }));
         
-        // Sort by distance and take the closest 3-5 systems to ensure better connectivity
+        // Sort by distance and take more neighbors to ensure better connectivity
         // This will create more connections and make the map easier to navigate
         const closestNeighbors = neighborsWithDistances
           .sort((a, b) => a.distance - b.distance)
-          .slice(0, 5); // Increased from 4 to 5 for better connectivity
+          .slice(0, Math.min(5, neighborsWithDistances.length)); // Take the 5 closest systems
         
         // Create connections to closest neighbors
         closestNeighbors.forEach(({ system: neighbor, distance }) => {
@@ -148,17 +148,84 @@ export async function fetchSystemConnections(): Promise<SystemConnection[]> {
           );
           
           if (!connectionExists) {
+            // Assign varying risk levels to connections based on distance
+            // This will make risk-based routing more interesting
             connections.push({
               sourceId: system.id,
               targetId: neighbor.id,
               distance: distance,
-              gateType: 'Standard Gate'
+              gateType: distance > 10 ? 'Smart Gate' : 'Standard Gate'
             });
           }
         });
       }
+      
+      // Ensure the graph is highly connected by adding some longer jumps
+      if (connections.length < systems.length * 3) {
+        console.log("Adding additional connections to ensure pathfinding works properly");
+        
+        // For testing purposes, create some direct connections between distant systems
+        // to ensure there are multiple possible routes between systems
+        for (let i = 0; i < systems.length; i += 5) {
+          const sourceSystem = systems[i];
+          // Add a few long-distance connections as "wormholes" or "jump bridges"
+          for (let j = 0; j < systems.length; j += 10) {
+            if (i !== j) {
+              const targetSystem = systems[j];
+              const dist = calculateDistance(sourceSystem.position, targetSystem.position);
+              
+              // Check if this connection already exists
+              const connectionExists = connections.some(
+                conn => (conn.sourceId === sourceSystem.id && conn.targetId === targetSystem.id) ||
+                        (conn.sourceId === targetSystem.id && conn.targetId === sourceSystem.id)
+              );
+              
+              if (!connectionExists) {
+                connections.push({
+                  sourceId: sourceSystem.id,
+                  targetId: targetSystem.id,
+                  distance: dist,
+                  gateType: 'Jump Bridge'
+                });
+              }
+            }
+          }
+        }
+      }
     }
 
+    // If we still have no connections after all attempts, generate direct connections
+    if (connections.length === 0) {
+      console.log('Failed to create connections, generating direct connections as fallback');
+      
+      // Simple approach: connect each system to its 5 nearest neighbors
+      for (let i = 0; i < systems.length; i++) {
+        const system = systems[i];
+        const otherSystems = systems.filter(s => s.id !== system.id);
+        
+        // Calculate distances to all other systems
+        const systemsWithDistance = otherSystems.map(other => ({
+          system: other,
+          distance: calculateDistance(system.position, other.position)
+        }));
+        
+        // Sort by distance and take the 5 nearest
+        const nearestSystems = systemsWithDistance
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, 5);
+        
+        // Create connections
+        nearestSystems.forEach(({ system: other, distance }) => {
+          connections.push({
+            sourceId: system.id,
+            targetId: other.id,
+            distance,
+            gateType: 'Standard Gate'
+          });
+        });
+      }
+    }
+    
     console.log(`Created ${connections.length} system connections`);
     return connections;
   } catch (error) {
@@ -349,10 +416,40 @@ export async function fetchSmartGates(): Promise<SystemConnection[]> {
     const systems = await fetchSolarSystems();
     console.log('Creating a few random smart gates for testing purposes');
     
+    // If we don't have standard connections, create some direct connections
+    if (standardConnections.length === 0) {
+      console.log('No standard connections found, creating some direct connections');
+      
+      // Create a small set of direct connections between systems
+      const connections: SystemConnection[] = [];
+      const systems = await fetchSolarSystems();
+      
+      // Create some random connections
+      for (let i = 0; i < systems.length; i += 3) {
+        const sourceSystem = systems[i];
+        // Connect to a few other systems
+        for (let j = 0; j < systems.length; j += 5) {
+          if (i !== j) {
+            const targetSystem = systems[j];
+            const dist = calculateDistance(sourceSystem.position, targetSystem.position);
+            
+            connections.push({
+              sourceId: sourceSystem.id,
+              targetId: targetSystem.id,
+              distance: dist,
+              gateType: 'Smart Gate'
+            });
+          }
+        }
+      }
+      
+      return connections;
+    }
+      
     // Find the longest connections (which would benefit most from being smart gates)
     const connectionsByDistance = [...standardConnections]
       .sort((a, b) => b.distance - a.distance)
-      .slice(0, Math.ceil(standardConnections.length * 0.05)); // Take top 5%
+      .slice(0, Math.ceil(Math.max(standardConnections.length * 0.05, 5))); // Take top 5% or at least 5
       
     return connectionsByDistance.map(conn => ({
       sourceId: conn.sourceId,
