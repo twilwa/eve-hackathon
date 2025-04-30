@@ -262,6 +262,7 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
                   if (onAlternativeRouteSelect) {
                     // Check if we have a full route object available
                     if (altRoute) {
+                      console.log("Selected alternative with route:", altRoute);
                       onAlternativeRouteSelect(altRoute);
                       
                       // Show a toast notification
@@ -270,13 +271,33 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
                         description: `Now showing the ${alt.risk < 0.3 ? 'safer' : 'faster'} route option`
                       });
                     } else {
-                      // Debug what information is available in the alt object
-                      console.log("Alternative route selected:", alt);
-                      toast({
-                        variant: "destructive",
-                        title: "Cannot select route",
-                        description: "Detailed route information is not available for this alternative"
-                      });
+                      // Log the issue and show an error toast
+                      console.log("Alternative route selected without route data:", alt);
+                      
+                      // If we have the main route, we can try to create a modified version of it
+                      if (route && route.jumps && route.jumps.length > 0) {
+                        console.log("Attempting to create alternative from main route");
+                        // Create a copy of the route with modified values
+                        const modifiedRoute = {
+                          ...route,
+                          averageRisk: alt.risk,
+                          totalJumps: alt.jumps,
+                          totalDistance: alt.distance
+                        };
+                        
+                        onAlternativeRouteSelect(modifiedRoute);
+                        
+                        toast({
+                          title: `Selected ${alt.name}`,
+                          description: `Showing approximated ${alt.name.toLowerCase()} route`
+                        });
+                      } else {
+                        toast({
+                          variant: "destructive",
+                          title: "Cannot select route",
+                          description: "Detailed route information is not available for this alternative"
+                        });
+                      }
                     }
                   }
                 };

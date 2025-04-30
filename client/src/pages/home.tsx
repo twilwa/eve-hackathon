@@ -166,15 +166,21 @@ export default function Home() {
                     setStartSystem(newStartSystem);
                     setEndSystem(newEndSystem);
                     
-                    // Optionally, recalculate alternatives from this new route
-                    // This will use the risk aversion that was used to create the alternative
-                    calculateRouteMutation({
-                      startSystemId: newStartSystem.id,
-                      endSystemId: newEndSystem.id,
-                      // Use a different risk aversion based on which alternative was selected
-                      // Values must be between 0-1: higher values prioritize safety (less risk)
-                      riskAversion: alternativeRoute.averageRisk < 0.4 ? 0.8 : 0.2
-                    });
+                    // Don't recalculate the route immediately - just set the state
+                    // This will avoid flicker and let us display the alternative route
+                    
+                    // Only recalculate if the route doesn't have alternatives of its own
+                    if (!alternativeRoute.alternatives || alternativeRoute.alternatives.length === 0) {
+                      console.log("No alternatives in selected route, calculating new ones");
+                      // Use a different risk aversion based on which alternative type was selected
+                      const riskValue = alternativeRoute.averageRisk < 0.4 ? 0.8 : 0.2;
+                      
+                      calculateRouteMutation({
+                        startSystemId: newStartSystem.id,
+                        endSystemId: newEndSystem.id,
+                        riskAversion: riskValue
+                      });
+                    }
                   }
                 }
                 
