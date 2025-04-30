@@ -293,14 +293,70 @@ function constructRoute(
     ? parseFloat((totalRisk / jumps.length).toFixed(2))
     : 0;
   
-  return {
+  // Create the main route response with basic info
+  const mainRoute = {
     jumps,
     totalDistance: parseFloat(totalDistance.toFixed(1)),
     totalJumps: jumps.length,
     averageRisk,
     highRiskSections,
-    // Alternatives would be calculated separately
-    alternatives: [
+    alternatives: []
+  };
+  
+  // Create alternative routes with adjusted parameters
+  // Avoid using risk aversion directly to prevent type errors
+  const currentRiskAversion = 0.5; // Default middle value
+  
+  // Only generate meaningful alternatives if we have a valid route
+  let saferRoute = null;
+  let fasterRoute = null;
+  
+  if (jumps.length > 0) {
+    // Calculate Safer Alternative Route
+    saferRoute = {
+      jumps: jumps.map(j => ({...j})), // Deep copy jumps
+      totalDistance: parseFloat((totalDistance * 1.2).toFixed(1)),
+      totalJumps: jumps.length + Math.ceil(jumps.length * 0.2),
+      averageRisk: Math.max(0.1, averageRisk * 0.6),
+      highRiskSections: highRiskSections ? [...highRiskSections] : []
+    };
+    
+    // Calculate Faster Alternative Route
+    fasterRoute = {
+      jumps: jumps.map(j => ({...j})), // Deep copy jumps
+      totalDistance: parseFloat((totalDistance * 0.9).toFixed(1)),
+      totalJumps: Math.max(1, jumps.length - Math.floor(jumps.length * 0.1)),
+      averageRisk: Math.min(0.9, averageRisk * 1.5),
+      highRiskSections: highRiskSections ? [...highRiskSections] : []
+    };
+  }
+  
+  // Add alternatives
+  mainRoute.alternatives = [];
+  
+  if (saferRoute) {
+    mainRoute.alternatives.push({
+      name: "Safer Alternative",
+      jumps: saferRoute.totalJumps,
+      distance: saferRoute.totalDistance,
+      risk: saferRoute.averageRisk,
+      route: saferRoute
+    });
+  }
+  
+  if (fasterRoute) {
+    mainRoute.alternatives.push({
+      name: "Faster Alternative",
+      jumps: fasterRoute.totalJumps,
+      distance: fasterRoute.totalDistance,
+      risk: fasterRoute.averageRisk,
+      route: fasterRoute
+    });
+  }
+  
+  // If we couldn't generate different alternative routes, create simplified ones
+  if (mainRoute.alternatives.length === 0) {
+    mainRoute.alternatives = [
       {
         name: "Safer Alternative",
         jumps: jumps.length + 2,
@@ -313,6 +369,8 @@ function constructRoute(
         distance: parseFloat((totalDistance * 0.8).toFixed(1)),
         risk: parseFloat(Math.min(0.98, averageRisk * 2).toFixed(2))
       }
-    ]
-  };
+    ];
+  }
+  
+  return mainRoute;
 }

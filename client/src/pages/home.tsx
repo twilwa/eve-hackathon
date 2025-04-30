@@ -144,7 +144,17 @@ export default function Home() {
             />
             
             {/* Route Details */}
-            <RouteDetails route={selectedRoute} />
+            <RouteDetails 
+              route={selectedRoute} 
+              onAlternativeRouteSelect={(alternativeRoute) => {
+                // When an alternative route is selected, update the displayed route
+                setSelectedRoute(alternativeRoute);
+                toast({
+                  title: "Alternative Route Selected",
+                  description: `Showing the alternative route with ${alternativeRoute.totalJumps} jumps and ${alternativeRoute.averageRisk.toFixed(2)} risk.`
+                });
+              }}
+            />
           </div>
         </div>
       </main>

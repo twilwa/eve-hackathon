@@ -75,25 +75,38 @@ export const routeJumpSchema = z.object({
 
 export type RouteJump = z.infer<typeof routeJumpSchema>;
 
-// Route Response Schema
-export const routeResponseSchema = z.object({
+// Define the structure of a high risk section
+export const highRiskSectionSchema = z.object({
+  systemId: z.number(),
+  systemName: z.string(),
+  riskLevel: z.number(),
+  warning: z.string().optional()
+});
+
+// Define the base alternative route schema
+export const alternativeRouteSchema = z.object({
+  name: z.string(),
+  jumps: z.number(),
+  distance: z.number(),
+  risk: z.number()
+});
+
+// First define a base route response schema without alternatives
+export const baseRouteResponseSchema = z.object({
   jumps: z.array(routeJumpSchema),
   totalDistance: z.number(),
   totalJumps: z.number(),
   averageRisk: z.number(),
-  highRiskSections: z.array(z.object({
-    systemId: z.number(),
-    systemName: z.string(),
-    riskLevel: z.number(),
-    warning: z.string().optional()
-  })).optional(),
-  alternatives: z.array(z.object({
-    name: z.string(),
-    jumps: z.number(),
-    distance: z.number(),
-    risk: z.number(),
-    route: z.lazy(() => routeResponseSchema).optional()
-  })).optional()
+  highRiskSections: z.array(highRiskSectionSchema).optional()
+});
+
+// Then define the full RouteResponseSchema with alternatives that may contain routes
+export const routeResponseSchema = baseRouteResponseSchema.extend({
+  alternatives: z.array(
+    alternativeRouteSchema.extend({
+      route: z.lazy(() => baseRouteResponseSchema).optional()
+    })
+  ).optional()
 });
 
 export type RouteResponse = z.infer<typeof routeResponseSchema>;
