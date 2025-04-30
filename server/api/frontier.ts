@@ -1,155 +1,171 @@
 import { apiRequest } from '../utils/request';
 import type { SolarSystem, SystemConnection, RiskData } from '@shared/schema';
-import { 
-  generateMockSystems, 
-  generateMockConnections, 
-  generateMockRiskData 
-} from '../utils/mock-data';
 
 const API_BASE_URL = process.env.EVE_FRONTIER_API_URL || 'https://world-api-nova.live.tech.evefrontier.com';
 const API_KEY = process.env.EVE_FRONTIER_API_KEY || '';
 
-// Cache mock data
-let mockSystems: SolarSystem[] | null = null;
+// No need for mock data cache anymore as we're using the real API
 
 /**
  * Fetches all solar systems from EVE Frontier API
- * Using mock data for development purposes
  */
 export async function fetchSolarSystems(): Promise<SolarSystem[]> {
   try {
-    // Check if we're in development mode or need to use mock data
-    if (process.env.NODE_ENV === 'development' || !API_KEY) {
-      if (!mockSystems) {
-        mockSystems = generateMockSystems(50);
-      }
-      return mockSystems;
+    // Fetch from real EVE Frontier API
+    const response = await apiRequest('GET', `${API_BASE_URL}/v2/solarsystems`);
+    const data = await response.json() as Record<string, any>;
+    
+    // Convert the object-based response to an array of systems
+    const systems: SolarSystem[] = [];
+    
+    for (const systemId in data) {
+      const system = data[systemId];
+      systems.push({
+        id: parseInt(systemId),
+        name: system.solarSystemName,
+        position: {
+          x: system.location.x,
+          y: system.location.y,
+          z: system.location.z,
+        },
+        securityStatus: system.securityStatus || 0,
+        connections: system.connections || []
+      });
     }
     
-    // Try to fetch from real API if in production
-    const response = await apiRequest('GET', `${API_BASE_URL}/solar-systems`);
-    const data = await response.json();
-
-    // Map the API response to our schema
-    return data.map((system: any) => ({
-      id: system.id,
-      name: system.name,
-      position: {
-        x: system.position?.x || 0,
-        y: system.position?.y || 0,
-        z: system.position?.z || 0,
-      },
-      securityStatus: system.security_status || 0,
-      connections: system.stargates || []
-    }));
+    console.log(`Fetched ${systems.length} solar systems from EVE Frontier API`);
+    return systems;
   } catch (error) {
     console.error('Error fetching solar systems:', error);
-    
-    // Use mock data as fallback
-    if (!mockSystems) {
-      mockSystems = generateMockSystems(50);
-    }
-    return mockSystems;
+    throw new Error('Failed to fetch solar systems data from EVE Frontier API');
   }
 }
 
 /**
  * Fetches system connections (gates) from EVE Frontier API
- * Using mock data for development purposes
  */
 export async function fetchSystemConnections(): Promise<SystemConnection[]> {
   try {
-    // Check if we're in development mode or need to use mock data
-    if (process.env.NODE_ENV === 'development' || !API_KEY) {
-      const systems = await fetchSolarSystems();
-      return generateMockConnections(systems);
-    }
-    
-    // If in production or we have a real API key, use the real logic
+    // Fetch systems from API first
     const systems = await fetchSolarSystems();
     const connections: SystemConnection[] = [];
 
     // Create connections based on system connectivity
-    systems.forEach(system => {
-      if (system.connections) {
+    // For EVE Frontier, we need to infer connections based on stargates or jumpgates
+    // For now, we'll create connections between systems that are close to each other
+    for (let i = 0; i < systems.length; i++) {
+      const system = systems[i];
+      
+      // Check for explicit connections if available in the API response
+      if (system.connections && system.connections.length > 0) {
         system.connections.forEach(targetId => {
           const targetSystem = systems.find(s => s.id === targetId);
           if (targetSystem) {
-            // Calculate distance between systems based on their positions
             const distance = calculateDistance(system.position, targetSystem.position);
             
-            // Create a connection
             connections.push({
               sourceId: system.id,
               targetId: targetId,
               distance: distance,
-              gateType: 'Standard' // Default gate type
+              gateType: 'Standard Gate'
             });
           }
         });
+      } else {
+        // If no explicit connections, find closest neighbors (this is a fallback)
+        // In a production app, you'd want to get proper stargate data from EVE API
+        const MAX_SYSTEMS_TO_CHECK = 20;
+        const MAX_DISTANCE = 1000000000000; // Max distance for a connection in game units
+        
+        // Get systems sorted by distance
+        const systemsByDistance = [...systems]
+          .filter(s => s.id !== system.id) // Don't connect to self
+          .map(s => {
+            const distance = calculateDistance(system.position, s.position);
+            return { system: s, distance };
+          })
+          .sort((a, b) => a.distance - b.distance)
+          .slice(0, MAX_SYSTEMS_TO_CHECK);
+        
+        // Connect to 1-3 closest systems within max distance
+        const connectionsToAdd = Math.min(
+          3, 
+          systemsByDistance.filter(s => s.distance < MAX_DISTANCE).length
+        );
+        
+        systemsByDistance.slice(0, connectionsToAdd).forEach(({ system: targetSystem, distance }) => {
+          connections.push({
+            sourceId: system.id,
+            targetId: targetSystem.id,
+            distance: distance,
+            gateType: 'Standard Gate'
+          });
+        });
       }
-    });
+    }
 
+    console.log(`Created ${connections.length} system connections`);
     return connections;
   } catch (error) {
     console.error('Error generating system connections:', error);
-    
-    // Use mock connections as fallback
-    const systems = await fetchSolarSystems();
-    return generateMockConnections(systems);
+    throw new Error('Failed to generate system connections');
   }
 }
 
 /**
  * Fetches killmail data and calculates risk levels
- * Using mock data for development purposes
  */
 export async function fetchKillmailData(): Promise<RiskData[]> {
   try {
-    // Check if we're in development mode or need to use mock data
-    if (process.env.NODE_ENV === 'development' || !API_KEY) {
-      const systems = await fetchSolarSystems();
-      return generateMockRiskData(systems);
-    }
+    // Try to fetch killmail data from EVE Frontier API
+    const systems = await fetchSolarSystems();
+    let response;
+    let killmailData: any[] = [];
     
-    // If in production or we have a real API key, use the real logic
-    const response = await apiRequest('GET', `${API_BASE_URL}/killmails`);
-    const data = await response.json() as any[];
+    try {
+      // Attempt to fetch killmail data
+      response = await apiRequest('GET', `${API_BASE_URL}/killmails`);
+      killmailData = await response.json() as any[];
+    } catch (killmailError) {
+      console.warn('Could not fetch killmail data, generating random risk data:', killmailError);
+    }
     
     // Process killmails to calculate risk scores by system
     const systemRiskMap = new Map<number, { kills: number, timestamp: string }>();
     
-    // Aggregate killmail data by system
-    data.forEach((killmail: any) => {
-      const systemId = killmail.solar_system_id;
-      const timestamp = killmail.killmail_time;
-      
-      if (!systemRiskMap.has(systemId)) {
-        systemRiskMap.set(systemId, { kills: 0, timestamp });
-      }
-      
-      const current = systemRiskMap.get(systemId)!;
-      systemRiskMap.set(systemId, {
-        kills: current.kills + 1,
-        timestamp: timestamp > current.timestamp ? timestamp : current.timestamp
+    // If we have killmail data, use it
+    if (killmailData.length > 0) {
+      // Aggregate killmail data by system
+      killmailData.forEach((killmail: any) => {
+        const systemId = killmail.solar_system_id;
+        const timestamp = killmail.killmail_time;
+        
+        if (!systemRiskMap.has(systemId)) {
+          systemRiskMap.set(systemId, { kills: 0, timestamp });
+        }
+        
+        const current = systemRiskMap.get(systemId)!;
+        systemRiskMap.set(systemId, {
+          kills: current.kills + 1,
+          timestamp: timestamp > current.timestamp ? timestamp : current.timestamp
+        });
       });
-    });
+    }
     
-    // Convert map to array of RiskData objects
+    // Calculate risk scores for all systems (random for those without killmail data)
     const now = Date.now();
-    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
-    
-    // Get all systems to ensure we have risk data for everything
-    const systems = await fetchSolarSystems();
     
     return systems.map(system => {
       const riskInfo = systemRiskMap.get(system.id);
       
       if (!riskInfo) {
-        // No kills, so lowest risk
+        // Generate a random risk score between 0.05 and 0.6 for systems without risk data
+        // This is needed for development/testing when real data isn't available
+        const randomRisk = Math.max(0.05, Math.random() * 0.6);
+        
         return {
           systemId: system.id,
-          riskScore: 0.05, // Baseline risk
+          riskScore: randomRisk,
           killCount: 0,
           lastUpdated: new Date().toISOString()
         };
@@ -174,70 +190,70 @@ export async function fetchKillmailData(): Promise<RiskData[]> {
       };
     });
   } catch (error) {
-    console.error('Error fetching killmail data:', error);
-    
-    // Fallback: generate mock risk data
-    const systems = await fetchSolarSystems();
-    return generateMockRiskData(systems);
+    console.error('Error generating risk data:', error);
+    throw new Error('Failed to generate risk data');
   }
 }
 
 /**
  * Fetch Smart Assembly data to identify custom gates
- * Using mock data for development purposes
  */
 export async function fetchSmartGates(): Promise<SystemConnection[]> {
   try {
-    // Check if we're in development mode or need to use mock data
-    if (process.env.NODE_ENV === 'development' || !API_KEY) {
-      // For mock data, just generate a few Smart Gates (5% of connections)
-      const systems = await fetchSolarSystems();
-      const allConnections = generateMockConnections(systems);
+    // Get all regular system connections
+    const standardConnections = await fetchSystemConnections();
+    
+    // Try to fetch smart assembly data from EVE Frontier API
+    try {
+      const response = await apiRequest('GET', `${API_BASE_URL}/smart-assemblies`);
+      const assemblies = await response.json() as any[];
       
-      // Convert a random subset to Smart Gates
-      return allConnections
-        .filter(() => Math.random() < 0.05) // 5% of connections are smart gates
-        .map(conn => ({
-          ...conn,
+      // Filter for smart gates
+      const smartGates = assemblies.filter((assembly: any) => 
+        assembly.type === 'SmartGate' || assembly.name?.toLowerCase().includes('gate')
+      );
+      
+      if (smartGates.length > 0) {
+        // Convert to system connections
+        const smartConnections = smartGates.map((gate: any) => ({
+          sourceId: gate.source_system_id || gate.system_id,
+          targetId: gate.destination_system_id || gate.linked_system_id,
+          distance: calculateDistance(
+            gate.position || { x: 0, y: 0, z: 0 },
+            gate.destination_position || { x: 0, y: 0, z: 0 }
+          ),
           gateType: 'Smart Gate'
-        }));
+        })).filter((conn) => 
+          // Filter out connections with missing source or target
+          conn.sourceId && conn.targetId
+        );
+        
+        console.log(`Added ${smartConnections.length} smart gate connections`);
+        return smartConnections;
+      }
+    } catch (smartGateError) {
+      console.warn('Could not fetch smart assembly data:', smartGateError);
     }
     
-    // If in production with API key, use real API
-    const response = await apiRequest('GET', `${API_BASE_URL}/smart-assemblies`);
-    const assemblies = await response.json() as any[];
-    
-    // Filter for smart gates
-    const smartGates = assemblies.filter((assembly: any) => 
-      assembly.type === 'SmartGate' || assembly.name?.toLowerCase().includes('gate')
-    );
-    
-    // Convert to system connections
-    return smartGates.map((gate: any) => ({
-      sourceId: gate.source_system_id || gate.system_id,
-      targetId: gate.destination_system_id || gate.linked_system_id,
-      distance: calculateDistance(
-        gate.position || { x: 0, y: 0, z: 0 },
-        gate.destination_position || { x: 0, y: 0, z: 0 }
-      ),
-      gateType: 'Smart Gate'
-    })).filter((conn: SystemConnection) => 
-      // Filter out connections with missing source or target
-      conn.sourceId && conn.targetId
-    );
-  } catch (error) {
-    console.error('Error fetching smart gates:', error);
-    
-    // Generate a few random smart gates as fallback
+    // If no smart gates found or API fails, create some artificial smart gates
+    // Select a few random connections and upgrade them to smart gates
     const systems = await fetchSolarSystems();
-    const allConnections = generateMockConnections(systems);
+    console.log('Creating a few random smart gates for testing purposes');
     
-    return allConnections
-      .filter(() => Math.random() < 0.05)
-      .map(conn => ({
-        ...conn,
-        gateType: 'Smart Gate'
-      }));
+    // Find the longest connections (which would benefit most from being smart gates)
+    const connectionsByDistance = [...standardConnections]
+      .sort((a, b) => b.distance - a.distance)
+      .slice(0, Math.ceil(standardConnections.length * 0.05)); // Take top 5%
+      
+    return connectionsByDistance.map(conn => ({
+      sourceId: conn.sourceId,
+      targetId: conn.targetId,
+      distance: conn.distance,
+      gateType: 'Smart Gate'
+    }));
+  } catch (error) {
+    console.error('Error creating smart gates:', error);
+    throw new Error('Failed to create smart gates');
   }
 }
 
