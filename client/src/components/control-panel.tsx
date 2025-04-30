@@ -31,13 +31,44 @@ import type { SolarSystem } from "@shared/schema";
 interface ControlPanelProps {
   onSubmit: (startSystem: SolarSystem, endSystem: SolarSystem, riskAversion: number) => void;
   isLoading: boolean;
+  startSystem?: SolarSystem | null;
+  endSystem?: SolarSystem | null;
+  onStartSystemSelect?: (system: SolarSystem | null) => void;
+  onEndSystemSelect?: (system: SolarSystem | null) => void;
 }
 
-export function ControlPanel({ onSubmit, isLoading }: ControlPanelProps) {
+export function ControlPanel({ 
+  onSubmit, 
+  isLoading, 
+  startSystem: externalStartSystem, 
+  endSystem: externalEndSystem,
+  onStartSystemSelect,
+  onEndSystemSelect
+}: ControlPanelProps) {
   const [startSystemSearch, setStartSystemSearch] = useState("");
   const [endSystemSearch, setEndSystemSearch] = useState("");
-  const [startSystemSelected, setStartSystemSelected] = useState<SolarSystem | null>(null);
-  const [endSystemSelected, setEndSystemSelected] = useState<SolarSystem | null>(null);
+  const [localStartSystem, setLocalStartSystem] = useState<SolarSystem | null>(null);
+  const [localEndSystem, setLocalEndSystem] = useState<SolarSystem | null>(null);
+  
+  // Determine which start system to use (external or local)
+  const startSystemSelected = externalStartSystem !== undefined ? externalStartSystem : localStartSystem;
+  const endSystemSelected = externalEndSystem !== undefined ? externalEndSystem : localEndSystem;
+  
+  // Set local start system and notify parent if handler provided
+  const setStartSystemSelected = (system: SolarSystem | null) => {
+    setLocalStartSystem(system);
+    if (onStartSystemSelect) {
+      onStartSystemSelect(system);
+    }
+  };
+  
+  // Set local end system and notify parent if handler provided
+  const setEndSystemSelected = (system: SolarSystem | null) => {
+    setLocalEndSystem(system);
+    if (onEndSystemSelect) {
+      onEndSystemSelect(system);
+    }
+  };
   const [riskAversion, setRiskAversion] = useState(50);
   const [showRiskHeatmap, setShowRiskHeatmap] = useState(true);
   const [showGateTypes, setShowGateTypes] = useState(true);

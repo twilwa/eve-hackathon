@@ -61,15 +61,46 @@ export default function Home() {
     }
   });
   
+  // Handle system selection from star map
+  const handleSystemSelect = (system: SolarSystem) => {
+    // If the system is already selected as start, deselect it
+    if (startSystem && startSystem.id === system.id) {
+      setStartSystem(null);
+      return;
+    }
+    
+    // If the system is already selected as end, deselect it
+    if (endSystem && endSystem.id === system.id) {
+      setEndSystem(null);
+      return;
+    }
+    
+    // If no start system is selected, set it as start
+    if (!startSystem) {
+      setStartSystem(system);
+      return;
+    }
+    
+    // If start is selected but no end, set it as end
+    if (startSystem && !endSystem) {
+      setEndSystem(system);
+      return;
+    }
+    
+    // If both are already selected, replace start and clear end
+    setStartSystem(system);
+    setEndSystem(null);
+  };
+  
   // Handle route calculation request
   const handleCalculateRoute = (
-    startSystem: SolarSystem, 
-    endSystem: SolarSystem, 
+    startSys: SolarSystem, 
+    endSys: SolarSystem, 
     riskAversion: number
   ) => {
     calculateRouteMutation({
-      startSystemId: startSystem.id,
-      endSystemId: endSystem.id,
+      startSystemId: startSys.id,
+      endSystemId: endSys.id,
       riskAversion
     });
   };
@@ -91,6 +122,10 @@ export default function Home() {
             <ControlPanel 
               onSubmit={handleCalculateRoute}
               isLoading={isCalculatingRoute}
+              startSystem={startSystem}
+              endSystem={endSystem}
+              onStartSystemSelect={setStartSystem}
+              onEndSystemSelect={setEndSystem}
             />
           </div>
           
@@ -103,6 +138,9 @@ export default function Home() {
               riskData={riskData || []}
               selectedRoute={selectedRoute}
               isLoading={isCalculatingRoute}
+              startSystem={startSystem}
+              endSystem={endSystem}
+              onSystemSelect={handleSystemSelect}
             />
             
             {/* Route Details */}
