@@ -13,7 +13,7 @@ app.use(express.urlencoded({ extended: false }));
 // Logging middleware (remains the same)
 app.use((req, res, next) => {
 	const start = Date.now();
-	const path = req.path;
+	const {path} = req;
 	let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
 	const originalResJson = res.json;
