@@ -286,7 +286,7 @@ export function ScoutJobModal() {
 
   // Generate route JSON proof for testing purposes
   const generateRouteProof = () => {
-    if (!selectedJob) return;
+    if (!selectedJob) {
     
     const now = new Date();
     const routeProof = {
