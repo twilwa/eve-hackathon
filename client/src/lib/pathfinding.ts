@@ -26,132 +26,131 @@ export function getRiskCategory(riskScore: number): "safe" | "warning" | "danger
 
 /**
  * Calculates coordinates for visualizing a solar system on a 2D map
- * with aggressive spacing for EVE Frontier systems to avoid overcrowding
+ * using an evenly distributed grid approach with systematic offsets
  */
 export function calculateMapCoordinates(
   systems: SolarSystem[]
 ): Map<number, { x: number, y: number }> {
   const coordinatesMap = new Map<number, { x: number, y: number }>();
   
-  // Step 1: Use a more sophisticated approach that places systems in a grid
-  // and then adjusts their positions to separate clusters
+  // Use a grid-based distribution to evenly space out systems
+  const gridSize = Math.ceil(Math.sqrt(systems.length)) + 1;
   
-  // First create a spatial mapping of systems to identify clusters
-  type Point3D = { x: number, y: number, z: number };
-  const kdTree: { position: Point3D, system: SolarSystem }[] = [];
+  // Create a grid occupancy map to track placed systems
+  const gridOccupancy: boolean[][] = Array(gridSize).fill(null)
+    .map(() => Array(gridSize).fill(false));
   
-  // Find the bounding box of all systems
-  let minX = Infinity, maxX = -Infinity;
-  let minY = Infinity, maxY = -Infinity;
-  let minZ = Infinity, maxZ = -Infinity;
-  
-  systems.forEach(system => {
-    minX = Math.min(minX, system.position.x);
-    maxX = Math.max(maxX, system.position.x);
-    minY = Math.min(minY, system.position.y);
-    maxY = Math.max(maxY, system.position.y);
-    minZ = Math.min(minZ, system.position.z);
-    maxZ = Math.max(maxZ, system.position.z);
-    
-    kdTree.push({
-      position: system.position,
-      system
-    });
+  // Sort systems by some meaningful property to ensure consistent placement
+  // Systems with similar properties will still be relatively close to each other
+  const sortedSystems = [...systems].sort((a, b) => {
+    // First by security status if available
+    if (a.securityStatus !== undefined && b.securityStatus !== undefined) {
+      return b.securityStatus - a.securityStatus;
+    }
+    // Then by position.x as a fallback
+    return a.position.x - b.position.x;
   });
   
-  // We'll use a force-directed-like approach where close systems push each other away
-  // First, calculate normalized positions based on logarithmic scaling
-  const normalizedPositions = new Map<number, { x: number, y: number }>();
-  
-  // Use cube root scaling for even more aggressive spreading of values
-  const scaleCubeRoot = (value: number, min: number, max: number) => {
-    // Handle potential negative values by shifting to positive range
-    const shifted = value - min + 1; // +1 to avoid issues with zero
-    const shiftedMax = max - min + 1;
+  // Helper function to generate a deterministic but well-distributed
+  // hash value for a system to aid in grid placement
+  const getSystemHash = (system: SolarSystem): number => {
+    const x = Math.abs(system.position.x);
+    const y = Math.abs(system.position.y);
+    const z = Math.abs(system.position.z);
+    const id = system.id;
     
-    // Use cube root scaling for aggressive distribution in dense areas
-    return Math.cbrt(shifted) / Math.cbrt(shiftedMax);
+    // Generate a hash from the system properties
+    // Use prime numbers to reduce collisions
+    return ((x * 73856093) ^ (y * 19349663) ^ (z * 83492791) ^ id) % 1000000;
   };
   
-  // Initial placement with cube root scaling
-  systems.forEach(system => {
-    // Apply strong scaling to better distribute systems
-    const nx = scaleCubeRoot(system.position.x, minX, maxX);
-    const ny = scaleCubeRoot(system.position.y, minY, maxY);
-    const nz = scaleCubeRoot(system.position.z, minZ, maxZ);
+  // Function to find the next available grid cell with specified pattern
+  const findAvailableGridCell = (system: SolarSystem, startIdx: number): { row: number, col: number } => {
+    // Try spiral pattern, outward from the center
+    const centerRow = Math.floor(gridSize / 2);
+    const centerCol = Math.floor(gridSize / 2);
     
-    // Use a radically different projection combining all coordinates
-    // Use system ID to create systematic variability 
-    const hashFactor = (system.id % 10) / 30; // Systematic variation based on ID
+    // Use system hash for deterministic offset from center
+    const hash = getSystemHash(system);
+    const rowOffset = (hash % 5) - 2; // -2 to +2
+    const colOffset = ((hash / 5) % 5) - 2; // -2 to +2
     
-    // Project 3D to 2D with strong randomization to break up clusters
-    const x = 0.1 + (nx * 0.5 + nz * 0.3 + hashFactor) * 0.8;
-    const y = 0.1 + (ny * 0.5 + (nx + nz) * 0.25 + hashFactor) * 0.8;
+    const startRow = Math.max(0, Math.min(gridSize - 1, centerRow + rowOffset));
+    const startCol = Math.max(0, Math.min(gridSize - 1, centerCol + colOffset));
     
-    // Add systematic offsets based on system ID for better distribution
-    normalizedPositions.set(system.id, { x, y });
-  });
-  
-  // Now use repulsion to push overlapping/nearby systems apart
-  // This is a simplified force-directed algorithm
-  const REPULSION_FORCE = 0.1;  // How strongly systems push each other away
-  const ITERATIONS = 5;         // Number of iterations for force adjustment
-  const MIN_DISTANCE = 0.05;    // Minimum distance between systems
-  
-  for (let iter = 0; iter < ITERATIONS; iter++) {
-    // For each system, calculate repulsion from all other systems
-    for (let i = 0; i < systems.length; i++) {
-      const systemA = systems[i];
-      const posA = normalizedPositions.get(systemA.id)!;
-      let forceX = 0, forceY = 0;
-      
-      // Calculate forces from all other systems
-      for (let j = 0; j < systems.length; j++) {
-        if (i === j) continue;
-        
-        const systemB = systems[j];
-        const posB = normalizedPositions.get(systemB.id)!;
-        
-        // Calculate distance between systems
-        const dx = posA.x - posB.x;
-        const dy = posA.y - posB.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        // Only apply force if systems are too close
-        if (distance < MIN_DISTANCE) {
-          // Normalize direction and calculate repulsion force
-          // Smaller distances create stronger repulsion (inverse square law)
-          const forceMagnitude = REPULSION_FORCE * (1 / (distance * distance));
-          const normalizedDx = dx / distance || Math.random() - 0.5;
-          const normalizedDy = dy / distance || Math.random() - 0.5;
-          
-          forceX += normalizedDx * forceMagnitude;
-          forceY += normalizedDy * forceMagnitude;
-        }
+    // Spiral search from the starting point
+    const spiralDirections = [
+      { dr: 0, dc: 1 },  // right
+      { dr: 1, dc: 0 },  // down
+      { dr: 0, dc: -1 }, // left
+      { dr: -1, dc: 0 }  // up
+    ];
+    
+    let row = startRow;
+    let col = startCol;
+    let dirIndex = 0;
+    let stepsInCurrentDir = 1;
+    let stepsTaken = 0;
+    let segmentsPassed = 0;
+    
+    // Try to find an empty cell in the grid using spiral pattern
+    for (let attempts = 0; attempts < gridSize * gridSize; attempts++) {
+      // Check if current cell is available
+      if (row >= 0 && row < gridSize && col >= 0 && col < gridSize && !gridOccupancy[row][col]) {
+        return { row, col };
       }
       
-      // Apply force to position (with damping to avoid instability)
-      const damping = 0.9 / Math.sqrt(iter + 1);
-      const newX = Math.max(0.05, Math.min(0.95, posA.x + forceX * damping));
-      const newY = Math.max(0.05, Math.min(0.95, posA.y + forceY * damping));
+      // Move to next cell in spiral
+      const dir = spiralDirections[dirIndex];
+      row += dir.dr;
+      col += dir.dc;
       
-      // Update position
-      normalizedPositions.set(systemA.id, { x: newX, y: newY });
+      stepsTaken++;
+      
+      // Check if we need to change direction
+      if (stepsTaken === stepsInCurrentDir) {
+        dirIndex = (dirIndex + 1) % 4;
+        stepsTaken = 0;
+        segmentsPassed++;
+        
+        // Increase step length every 2 segments
+        if (segmentsPassed === 2) {
+          stepsInCurrentDir++;
+          segmentsPassed = 0;
+        }
+      }
     }
-  }
-  
-  // Final pass: Add small random offsets and ensure no systems are outside the map
-  systems.forEach(system => {
-    const pos = normalizedPositions.get(system.id)!;
     
-    // Add small random offsets to break up any remaining patterns or exact overlaps
-    const randomOffset = () => (Math.random() - 0.5) * 0.03;
+    // Fallback: just place it in a deterministic position based on index
+    const fallbackRow = startIdx % gridSize;
+    const fallbackCol = Math.floor(startIdx / gridSize) % gridSize;
+    return { row: fallbackRow, col: fallbackCol };
+  };
+
+  // Place each system on the grid
+  sortedSystems.forEach((system, index) => {
+    // Find a grid cell for this system
+    const { row, col } = findAvailableGridCell(system, index);
     
-    // Ensure systems stay within display bounds with padding
-    const x = Math.max(0.05, Math.min(0.95, pos.x + randomOffset()));
-    const y = Math.max(0.05, Math.min(0.95, pos.y + randomOffset()));
+    // Mark this cell as occupied
+    if (row >= 0 && row < gridSize && col >= 0 && col < gridSize) {
+      gridOccupancy[row][col] = true;
+    }
     
-    coordinatesMap.set(system.id, { x, y });
+    // Calculate normalized coordinates (0-1 range)
+    // Add small random jitter to avoid perfect grid alignment
+    const jitterX = (Math.sin(system.id * 0.1) * 0.3 + Math.random() * 0.4 - 0.2) / gridSize;
+    const jitterY = (Math.cos(system.id * 0.1) * 0.3 + Math.random() * 0.4 - 0.2) / gridSize;
+    
+    // Position in 0.05-0.95 range with jitter
+    const x = 0.05 + (col / (gridSize - 1)) * 0.9 + jitterX;
+    const y = 0.05 + (row / (gridSize - 1)) * 0.9 + jitterY;
+    
+    // Store the calculated coordinates
+    coordinatesMap.set(system.id, { 
+      x: Math.max(0.05, Math.min(0.95, x)),
+      y: Math.max(0.05, Math.min(0.95, y))
+    });
   });
   
   return coordinatesMap;
