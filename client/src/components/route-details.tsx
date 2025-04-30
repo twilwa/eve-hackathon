@@ -154,6 +154,37 @@ export function RouteDetails({ route }: RouteDetailsProps) {
           </div>
         </div>
         
+        {/* Route optimization visualization */}
+        <div className="mb-6 bg-muted bg-opacity-30 rounded-lg p-4">
+          <h3 className="font-medium mb-2">Route Optimization</h3>
+          
+          <div className="mb-4">
+            <div className="flex justify-between text-sm text-muted-foreground mb-1">
+              <span>Speed Priority</span>
+              <span>Safety Priority</span>
+            </div>
+            <div className="h-2 bg-muted rounded-full mt-1 overflow-hidden relative">
+              <div 
+                className="absolute top-0 left-0 h-full w-full bg-gradient-to-r from-red-500 via-amber-500 to-green-500 rounded-full"
+              ></div>
+              <div 
+                className="absolute top-0 h-full w-1 bg-white border-2 border-primary rounded-full"
+                style={{ 
+                  left: `${100 - (route.averageRisk * 100)}%`,
+                  transform: 'translateX(-50%)'
+                }}
+              ></div>
+            </div>
+          </div>
+          
+          <div className="text-sm text-muted-foreground">
+            This route is {route.averageRisk < 0.3 ? 'optimized for safety' : 
+                           route.averageRisk > 0.7 ? 'optimized for speed' : 
+                           'balanced between safety and speed'}.
+            {route.averageRisk > 0.5 && ' Consider increasing your risk aversion for a safer journey.'}
+          </div>
+        </div>
+        
         {/* Warning for high risk sections */}
         {route.highRiskSections && route.highRiskSections.length > 0 && (
           <Alert className="mb-6 border-amber-600 bg-amber-950 bg-opacity-30">
