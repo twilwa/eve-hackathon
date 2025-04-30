@@ -169,6 +169,8 @@ export default function Home() {
                   setRiskAversion(newRiskAversion);
                   
                   // Recalculate the route with new parameters
+                  // Note: handleCalculateRoute expects riskAversion in 0-100 range (0-100%)
+                  // The API expects 0-1 range (conversion happens in the handler)
                   handleCalculateRoute(startSystem, endSystem, newRiskAversion);
                   
                   toast({
