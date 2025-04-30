@@ -1,0 +1,119 @@
+Advanced Risk-Aware Route Planner
+A sophisticated navigation tool that helps players find optimal paths through space while assessing safety risks.
+
+Core Features
+Smart route calculation based on multiple criteria (distance, safety, fuel efficiency)
+
+Real-time risk assessment using historical conflict data
+
+Integration with smart gate access data
+
+Visual heatmap of dangerous areas
+
+Technical Implementation
+python
+import networkx as nx
+import requests
+from typing import Dict, List
+
+class RoutePlanner:
+    def __init__(self, api_key):
+        self.api_key = api_key
+        self.headers = {'Authorization': f'Bearer {self.api_key}'}
+        self.base_url = 'https://api.evefrontier.com/v1'
+        self.graph = self.build_star_system_graph()
+        self.risk_data = self.fetch_risk_data()
+        
+    def build_star_system_graph(self):
+        """Build a graph of star systems and connections"""
+        response = requests.get(f"{self.base_url}/universe/systems", headers=self.headers)
+        systems = response.json()
+        
+        graph = nx.DiGraph()
+        
+        # Add nodes and edges to graph based on API response
+        for system in systems:
+            graph.add_node(system['system_id'], **system)
+            
+            for connection in system['connected_systems']:
+                graph.add_edge(
+                    system['system_id'],
+                    connection['system_id'],
+                    distance=connection['distance'],
+                    gate_type=connection.get('gate_type', 'standard')
+                )
+                
+        return graph
+    
+    def fetch_risk_data(self):
+        """Fetch recent kill data to assess system risk levels"""
+        response = requests.get(f"{self.base_url}/universe/killdata", headers=self.headers)
+        kill_data = response.json()
+        
+        risk_levels = {}
+        # Calculate risk based on recent kill frequency and value
+        for system_id in self.graph.nodes:
+            system_kills = [k for k in kill_data if k['system_id'] == system_id]
+            
+            if not system_kills:
+                risk_levels[system_id] = 0.1  # Base risk level
+                continue
+                
+            # Calculate risk based on frequency and value of kills
+            kill_count = len(system_kills)
+            value_destroyed = sum(k['value'] for k in system_kills)
+            
+            # Simple risk formula, could be made more sophisticated
+            risk_levels[system_id] = min(1.0, 0.1 + (kill_count / 20) * 0.5 + (value_destroyed / 1000000000) * 0.4)
+            
+        return risk_levels
+    
+    def find_route(self, start_id: int, end_id: int, risk_aversion: float = 0.5):
+        """Find optimal route based on distance and risk tolerance"""
+        # Create a copy of the graph to modify edge weights
+        route_graph = self.graph.copy()
+        
+        # Adjust edge weights based on risk aversion
+        for u, v, data in route_graph.edges(data=True):
+            base_distance = data['distance']
+            destination_risk = self.risk_data[v]
+            
+            # Higher risk_aversion means more weight on risky systems
+            adjusted_weight = base_distance * (1 + risk_aversion * destination_risk * 10)
+            route_graph[u][v]['weight'] = adjusted_weight
+            
+        # Find shortest path using adjusted weights
+        try:
+            path = nx.shortest_path(route_graph, start_id, end_id, weight='weight')
+            
+            # Calculate route details
+            total_distance = 0
+            total_risk = 0
+            jumps = []
+            
+            for i in range(len(path) - 1):
+                current = path[i]
+                next_system = path[i+1]
+                edge_data = self.graph[current][next_system]
+                
+                jumps.append({
+                    'from_id': current,
+                    'to_id': next_system,
+                    'distance': edge_data['distance'],
+                    'risk_level': self.risk_data[next_system],
+                    'gate_type': edge_data['gate_type']
+                })
+                
+                total_distance += edge_data['distance']
+                total_risk += self.risk_data[next_system]
+            
+            return {
+                'path': path,
+                'jumps': jumps,
+                'total_distance': total_distance,
+                'average_risk': total_risk / len(jumps),
+                'total_jumps': len(jumps)
+            }
+            
+        except nx.NetworkXNoPath:
+            return {"error": "No path found between specified systems"}
