@@ -1,0 +1,165 @@
+<context>
+# Overview  
+Brokered-Scouting MVP transforms an existing interactive star-map prototype into a minimal, production-ready service that enables EVE Frontier players to create, accept, and fulfill paid scouting runs in under three hours of engineering effort. This utility for data brokers and explorers leverages the EVE Frontier ecosystem and prepares for future integration with PODs (Proof of Discovery).
+
+# Core Features  
+1. System Selection
+   - Pick source and destination systems via searchable dropdowns with auto-complete
+   - Intuitive interface for specifying route endpoints
+   - Quick access to frequently scouted systems
+
+2. Dual Route Suggestion
+   - Display one fastest route (speed-priority) for efficiency
+   - Simultaneously show one safest route (risk-priority) for security
+   - Visual differentiation between routes (cyan = speed, teal = safe)
+
+3. Live Risk Overlay
+   - Color-code systems by 5-minute aggregated kill-count
+   - Green (≤0.3), amber (0.3-0.7), red (≥0.7) risk visualization
+   - Regular updates (every 20 seconds) to reflect current danger levels
+
+4. Brokered Scout Job
+   - Create job: Define source, destination, reward (ISK), and expiry
+   - Accept job: First-come-first-served job claiming mechanism
+   - Complete job: Upload route proof with jump list and timestamps
+   - Job status tracking (OPEN, CLAIMED, DONE)
+
+5. Route Export
+   - Persist jump list and risk metrics as JSON
+   - Enable future on-chain verification or POD conversion
+   - Standardized format for interoperability with other tools
+</context>
+<PRD>
+# Technical Architecture  
+## System Components
+- Frontend: React with TypeScript, Vite, TailwindCSS, D3.js for star map visualization
+- Backend: Node.js with Express for REST API, WebSockets, and business logic
+- Data Processing: A* pathfinding algorithm with customizable risk weighting
+- Data Sources: EVE Frontier API with in-memory LRU cache (node-cache)
+- Storage: SQLite for lightweight persistence of jobs and routes
+- Testing: Vitest/Supertest for unit and API testing coverage
+
+## Data Models
+- Solar Systems: System IDs, names, coordinates, and connectivity information
+- Risk Data: Kill counts aggregated by system, timeframe, and severity
+- Routes: Jump sequences with associated metadata (distance, risk metrics)
+- Scout Jobs: Structured job records with status, rewards, and completion proofs
+- Route Proofs: JSON data structures for verifying scouting completion
+
+## APIs and Integrations
+- Routes API: GET /api/routes for pathfinding with risk/speed preferences
+- Risk API: GET /api/risk/:systemId for current system risk levels
+- Jobs API: CRUD endpoints for job lifecycle management
+- EVE Frontier API: Integration for system data and killmail information
+- WebSocket Updates: Real-time risk overlay and job status notifications
+
+## Infrastructure Requirements
+- Lightweight deployment suitable for containerization (Docker)
+- Minimal storage requirements (file-based SQLite)
+- CI/CD pipeline through GitHub Actions
+- Environment configuration through .env templates
+- Responsive design for various screen sizes
+
+# Development Roadmap  
+## H-1 Bootstrap Phase (30 min)
+- Scaffold SQLite tables for jobs and routes
+- Create stub endpoints for core APIs
+- Seed system graph with initial topology data
+- Set up project structure and dependencies
+
+## H-2 Core Logic Phase (70 min)
+- Implement A* pathfinding with configurable risk weighting
+- Develop risk cache with 5-second TTL for killmail data
+- Create dual-route API endpoints (speed vs. safety)
+- Build star map overlays for route visualization
+
+## H-2.5 Broker Flow Phase (40 min)
+- Develop job creation and management modal
+- Implement job acceptance with atomic state transition
+- Create job completion verification logic
+- Build JSON export functionality
+
+## H-3 Polish & Test Phase (40 min)
+- Write Vitest tests for ≥70% coverage
+- Configure linting and code quality tools
+- Create Docker build configuration
+- Document API and usage in README
+
+# Logical Dependency Chain
+1. Data Ingestion
+   - Systems graph construction
+   - Killmail aggregation and risk calculation
+   - Caching strategy implementation
+
+2. Pathfinding System
+   - A* algorithm implementation with risk-aware weighting
+   - Dual path calculation (speed vs. safety)
+   - Route metadata generation
+
+3. Job Management
+   - Database schema and ORM setup
+   - State management for job lifecycle
+   - Atomic operations for job claiming
+
+4. UI Implementation
+   - Star map visualization with dual routes
+   - Job creation and management modal
+   - Risk overlay rendering
+
+5. Export & Future Integration
+   - JSON route export functionality
+   - Preparation for on-chain verification
+   - Groundwork for POD integration
+
+# Risks and Mitigations  
+## Technical Challenges
+- Killmail API latency: Implement caching with 5-second TTL and request debouncing
+- Race conditions on job acceptance: Use database UNIQUE constraints for OPEN status
+- Large graph performance: Apply progressive loading with quad-tree culling
+- Time constraints: Strictly adhere to MVP scope; defer ZK-pods and authentication
+
+## MVP Scope
+- Focus exclusively on core brokered scouting functionality
+- Limit initial feature set to meet 3-hour development timeframe
+- Defer non-essential features (complex authentication, ZK-proofs)
+
+## Resource Constraints
+- Optimize for minimal resource utilization (SQLite, in-memory cache)
+- Implement efficient rendering for star map visualization
+- Use lightweight containerization for deployment
+
+# Appendix  
+## Technical Details
+- Pathfinding weight formula: cost(edge) = distanceLY × (1 + riskScore × w)
+- Job data structure:
+```json
+{
+  "id": "<uuid>",
+  "from": "J-12009",
+  "to": "Y-1R0",
+  "reward": 1000000,
+  "expiry": "2025-05-01T18:00Z",
+  "status": "OPEN|CLAIMED|DONE",
+  "routeId": "<hash>",
+  "scoutPubKey": "hex...",
+  "proof": {"jumps": [...], "avgRisk": 0.30}
+}
+```
+
+## Implementation Priorities
+- Frontend Components:
+  - src/components/ScoutJobModal.tsx for job creation and acceptance
+  - src/components/StarMap.tsx for dual route overlay
+  - src/hooks/useKillRisk.ts for polling risk data
+
+- Backend Endpoints:
+  - routes.js: GET /api/routes with A* implementation
+  - risk.js: Killmail caching and risk calculation
+  - jobs.js: Job lifecycle management endpoints
+
+## Future Extensions
+- ZK-Proof integration for verifiable scouting
+- Advanced authentication and identity management
+- Integration with EVE Frontier PODs system
+- Enhanced risk prediction algorithms
+</PRD> 

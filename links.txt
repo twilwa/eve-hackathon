@@ -1,0 +1,17 @@
+https://world-api-nova.live.tech.evefrontier.com/config
+https://docs.evefrontier.com/SwaggerWorldApi
+https://docs.evefrontier.com/pods
+https://docs.evefrontier.com/Sandbox/SwaggerSandboxWorldApi
+https://github.com/projectawakening/builder-examples
+https://frontier.scetrov.live/develop/entity-relationships/
+https://github.com/projectawakening/pod-flow
+https://github.com/barryWhiteHat/baby_jubjub
+https://iden3-docs.readthedocs.io/en/latest/iden3_repos/research/publications/zkproof-standards-workshop-2/baby-jubjub/baby-jubjub.html
+https://0xparc.notion.site/POD-resources-for-EVE-Frontier-Hackathon-2025-1d971e0a5420809b9142f4c77a08c546
+https://insomnia.rest/
+https://world-api-nova.live.tech.evefrontier.com/v2/types/73192
+https://world-api-nova.live.tech.evefrontier.com/docs/index.html
+https://nova.evefrontier.com/en/account?view=PODs
+https://api.frontierdevtools.com/docs
+https://whitepaper.evefrontier.com/technology/blockchain-foundations/smart-objects
+

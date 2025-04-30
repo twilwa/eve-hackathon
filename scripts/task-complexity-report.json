@@ -1,0 +1,131 @@
+{
+  "meta": {
+    "generatedAt": "2025-04-30T21:42:46.209Z",
+    "tasksAnalyzed": 15,
+    "thresholdScore": 5,
+    "projectName": "Your Project Name",
+    "usedResearch": false
+  },
+  "complexityAnalysis": [
+    {
+      "taskId": 1,
+      "taskTitle": "Project Setup and Scaffolding",
+      "complexityScore": 5,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the project setup task into subtasks covering: 1) Vite initialization with React and TypeScript, 2) TailwindCSS and dependency installation, 3) Express server setup, 4) Folder structure creation, and 5) Code quality tools configuration.",
+      "reasoning": "This task involves multiple technologies (React, TypeScript, Vite, TailwindCSS, Express) and several configuration steps. While each step is relatively straightforward for an experienced developer, the combination requires careful organization to ensure all components work together properly."
+    },
+    {
+      "taskId": 2,
+      "taskTitle": "SQLite Database Setup",
+      "complexityScore": 4,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the SQLite database setup into subtasks covering: 1) SQLite and ORM installation, 2) Schema definition for jobs table, 3) Schema definition for routes table, and 4) Database initialization and migration scripts.",
+      "reasoning": "Database setup requires careful planning but is relatively contained in scope. The schema is well-defined in the task description, and SQLite is straightforward to set up. The migration capability adds some complexity but is manageable."
+    },
+    {
+      "taskId": 3,
+      "taskTitle": "System Graph Data Ingestion",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the system graph data ingestion task into subtasks covering: 1) EVE Frontier API integration for solar system data, 2) Data model design for system information, 3) LRU cache implementation with node-cache, 4) Graph representation construction, and 5) Graph update mechanisms.",
+      "reasoning": "This task involves external API integration, data modeling, caching strategies, and graph construction. The complexity comes from ensuring efficient data structures for the pathfinding algorithm and proper caching to minimize API calls."
+    },
+    {
+      "taskId": 4,
+      "taskTitle": "Killmail Aggregation and Risk Calculation",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the killmail aggregation task into subtasks covering: 1) EVE Frontier API integration for killmail data, 2) Time-based aggregation logic, 3) Risk score calculation algorithm, 4) Color-coding implementation, 5) Caching mechanism with TTL, and 6) Request debouncing implementation.",
+      "reasoning": "This task involves complex data processing, time-based aggregation, and multiple optimization techniques. The risk calculation algorithm requires careful implementation, and the caching and debouncing add significant complexity to ensure performance and API compliance."
+    },
+    {
+      "taskId": 5,
+      "taskTitle": "A* Pathfinding Algorithm Implementation",
+      "complexityScore": 9,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the A* pathfinding implementation into subtasks covering: 1) Core A* algorithm implementation, 2) Heuristic function design for distance calculation, 3) Risk-weighted cost function implementation, 4) Dual route calculation (speed vs. safety), 5) Route metadata generation, and 6) Edge case handling and optimization.",
+      "reasoning": "Implementing A* is algorithmically complex, especially with custom weighting for risk factors. The dual route calculation adds complexity, and optimization for large graphs requires careful implementation. Edge cases like disconnected graphs need special handling."
+    },
+    {
+      "taskId": 6,
+      "taskTitle": "Routes API Development",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the routes API development into subtasks covering: 1) Express endpoint implementation for route calculation, 2) Request validation and parameter handling, 3) Response formatting with route metadata, and 4) Error handling for edge cases.",
+      "reasoning": "This task is primarily about creating a REST API wrapper around the pathfinding algorithm. The complexity is moderate, focusing on proper API design, validation, and error handling rather than complex business logic."
+    },
+    {
+      "taskId": 7,
+      "taskTitle": "Risk API Development",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the risk API development into subtasks covering: 1) Single system risk endpoint implementation, 2) Batch risk retrieval endpoint, 3) Caching mechanism with TTL, 4) WebSocket setup for real-time updates, and 5) Error handling and response formatting.",
+      "reasoning": "This API implementation involves both REST and WebSocket components, adding complexity. The caching strategy is critical for performance, and the real-time nature of the data requires careful consideration of update mechanisms."
+    },
+    {
+      "taskId": 8,
+      "taskTitle": "Jobs API Development",
+      "complexityScore": 7,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the jobs API development into subtasks covering: 1) Job creation endpoint, 2) Job retrieval endpoints, 3) Job claiming with atomic operations, 4) Job completion endpoint, 5) Job expiry handling, and 6) Validation and error handling.",
+      "reasoning": "This API has multiple endpoints with complex business logic, particularly around atomic operations for job claiming. The job lifecycle management requires careful state handling and validation to ensure data integrity."
+    },
+    {
+      "taskId": 9,
+      "taskTitle": "Star Map Visualization Component",
+      "complexityScore": 8,
+      "recommendedSubtasks": 6,
+      "expansionPrompt": "Break down the star map visualization component into subtasks covering: 1) D3.js setup with React integration, 2) Solar system node rendering, 3) System label implementation, 4) Zoom and pan functionality, 5) Progressive loading with quad-tree culling, and 6) Component architecture for route overlay integration.",
+      "reasoning": "D3.js visualizations are inherently complex, especially when integrated with React. The performance optimizations like quad-tree culling add significant complexity, and the interactive nature of the map requires careful implementation of zoom and pan functionality."
+    },
+    {
+      "taskId": 10,
+      "taskTitle": "System Selection UI Implementation",
+      "complexityScore": 5,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the system selection UI into subtasks covering: 1) Searchable dropdown component with autocomplete, 2) Frequently used systems quick access, 3) Integration with star map for selection visualization, and 4) Form validation and error handling.",
+      "reasoning": "This UI component involves standard form elements with search functionality. The complexity is moderate, focusing on usability features like autocomplete and integration with the map component."
+    },
+    {
+      "taskId": 11,
+      "taskTitle": "Route Visualization and Risk Overlay",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the route visualization and risk overlay into subtasks covering: 1) Dual route rendering with visual differentiation, 2) Risk color-coding implementation, 3) useKillRisk hook for data polling, 4) Legend component creation, and 5) Transition animations for updates.",
+      "reasoning": "This task extends the already complex star map with additional visualization layers. The dual routes and risk overlay require careful visual design, and the polling mechanism adds complexity for keeping the visualization up-to-date."
+    },
+    {
+      "taskId": 12,
+      "taskTitle": "Scout Job Modal Implementation",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the scout job modal implementation into subtasks covering: 1) Modal component architecture with tabs, 2) Job creation form, 3) Job listing and acceptance UI, 4) Job completion form with proof upload, and 5) Form validation and notification system.",
+      "reasoning": "This UI component involves multiple forms and states within a modal interface. The tabbed design adds complexity, and the different job lifecycle stages require careful state management and validation."
+    },
+    {
+      "taskId": 13,
+      "taskTitle": "Route Export Functionality",
+      "complexityScore": 3,
+      "recommendedSubtasks": 4,
+      "expansionPrompt": "Break down the route export functionality into subtasks covering: 1) JSON export format definition, 2) Export utility function implementation, 3) Download mechanism integration, and 4) Documentation for the export format.",
+      "reasoning": "This task is relatively straightforward, involving data serialization and file download functionality. The complexity is low, focusing on creating a standardized export format and implementing the download mechanism."
+    },
+    {
+      "taskId": 14,
+      "taskTitle": "WebSocket Implementation for Real-time Updates",
+      "complexityScore": 7,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the WebSocket implementation into subtasks covering: 1) WebSocket server setup with Socket.io, 2) Client-side connection handling, 3) Channel configuration for different update types, 4) Reconnection and error handling logic, and 5) UI integration for applying updates.",
+      "reasoning": "WebSocket implementations involve both server and client components with real-time communication. The reconnection logic and error handling add complexity, and ensuring updates are properly applied to the UI requires careful integration."
+    },
+    {
+      "taskId": 15,
+      "taskTitle": "Containerization and Deployment Setup",
+      "complexityScore": 6,
+      "recommendedSubtasks": 5,
+      "expansionPrompt": "Break down the containerization and deployment setup into subtasks covering: 1) Dockerfile creation, 2) Docker Compose configuration, 3) GitHub Actions CI/CD pipeline setup, 4) Environment configuration management, and 5) Documentation and health check implementation.",
+      "reasoning": "Containerization requires understanding of Docker and deployment workflows. Setting up CI/CD adds complexity, and ensuring proper environment configuration across different deployment scenarios requires careful planning."
+    }
+  ]
+}

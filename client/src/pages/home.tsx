@@ -4,6 +4,7 @@ import { AppHeader } from "@/components/app-header";
 import { ControlPanel } from "@/components/control-panel";
 import { StarMap } from "@/components/star-map";
 import { RouteDetails } from "@/components/route-details";
+import { ScoutJobModal } from "@/components/scout-job-modal";
 import { 
   fetchSolarSystems,
   fetchSystemConnections,
@@ -118,7 +119,7 @@ export default function Home() {
       <main className="container mx-auto py-6 px-4 flex-grow">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
           {/* Left Column - Controls */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
             <ControlPanel 
               onSubmit={handleCalculateRoute}
               isLoading={isCalculatingRoute}
@@ -127,6 +128,11 @@ export default function Home() {
               onStartSystemSelect={setStartSystem}
               onEndSystemSelect={setEndSystem}
             />
+            
+            {/* Scout Job Button */}
+            <div className="mt-4">
+              <ScoutJobModal />
+            </div>
           </div>
           
           {/* Right Column - Map and Route Details */}

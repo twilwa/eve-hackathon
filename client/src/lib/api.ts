@@ -4,7 +4,11 @@ import type {
   SystemConnection, 
   RiskData, 
   RouteRequest,
-  RouteResponse
+  RouteResponse,
+  Job,
+  JobInsert,
+  JobClaim,
+  JobComplete
 } from "@shared/schema";
 
 // Fetch all solar systems
@@ -68,4 +72,63 @@ export async function getApiHealth() {
   } catch (error) {
     return { status: "offline", error: String(error) };
   }
+}
+
+// Jobs API
+
+// Get all jobs with optional filtering
+export async function getJobs(status?: string, page: number = 1, limit: number = 10) {
+  let url = `/api/jobs?page=${page}&limit=${limit}`;
+  if (status) {
+    url += `&status=${status}`;
+  }
+  const response = await apiRequest("GET", url);
+  return await response.json() as {
+    data: Job[];
+    pagination: {
+      page: number;
+      limit: number;
+      totalItems: number;
+      totalPages: number;
+    }
+  };
+}
+
+// Get a specific job by ID
+export async function getJob(id: number) {
+  const response = await apiRequest("GET", `/api/jobs/${id}`);
+  return await response.json() as Job;
+}
+
+// Create a new job
+export async function createJob(jobData: JobInsert) {
+  const response = await apiRequest("POST", "/api/jobs", jobData);
+  return await response.json() as Job;
+}
+
+// Claim a job
+export async function claimJob(id: number, claimData: JobClaim) {
+  const response = await apiRequest("PUT", `/api/jobs/${id}/claim`, claimData);
+  return await response.json() as Job;
+}
+
+// Complete a job
+export async function completeJob(id: number, completeData: JobComplete, scoutPubKey: string) {
+  const headers = { 'X-Scout-PubKey': scoutPubKey };
+  const response = await fetch(`/api/jobs/${id}/complete`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Scout-PubKey': scoutPubKey
+    },
+    body: JSON.stringify(completeData),
+    credentials: 'include',
+  });
+  
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`${response.status}: ${text || response.statusText}`);
+  }
+  
+  return await response.json() as Job;
 }
