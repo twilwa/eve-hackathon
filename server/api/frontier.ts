@@ -52,15 +52,56 @@ export async function fetchSystemConnections(): Promise<SystemConnection[]> {
     // Fetch systems from API first
     const systems = await fetchSolarSystems();
     const connections: SystemConnection[] = [];
-
-    // Create connections based on system connectivity
-    // For EVE Frontier, we need to infer connections based on stargates or jumpgates
-    // For now, we'll create connections between systems that are close to each other
-    for (let i = 0; i < systems.length; i++) {
-      const system = systems[i];
+    
+    // Try to get connections from API first if explicitly provided
+    let hasExplicitConnections = false;
+    
+    // Create a spatial grid to optimize finding nearby systems
+    // This is a simple spatial partitioning optimization for large datasets
+    const gridSize = 5e12; // Grid cell size based on typical EVE distances
+    const spatialGrid = new Map<string, SolarSystem[]>();
+    
+    // Place systems in grid cells
+    systems.forEach(system => {
+      const gridX = Math.floor(system.position.x / gridSize);
+      const gridY = Math.floor(system.position.y / gridSize);
+      const gridZ = Math.floor(system.position.z / gridSize);
+      const gridKey = `${gridX},${gridY},${gridZ}`;
       
-      // Check for explicit connections if available in the API response
+      if (!spatialGrid.has(gridKey)) {
+        spatialGrid.set(gridKey, []);
+      }
+      spatialGrid.get(gridKey)!.push(system);
+    });
+    
+    // Function to get nearby systems using the spatial grid
+    const getNearbySystemsFromGrid = (system: SolarSystem): SolarSystem[] => {
+      const gridX = Math.floor(system.position.x / gridSize);
+      const gridY = Math.floor(system.position.y / gridSize);
+      const gridZ = Math.floor(system.position.z / gridSize);
+      
+      // Check current cell and adjacent cells
+      const nearbySystems: SolarSystem[] = [];
+      
+      // Search in current and adjacent grid cells
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            const searchKey = `${gridX + dx},${gridY + dy},${gridZ + dz}`;
+            const cellSystems = spatialGrid.get(searchKey) || [];
+            nearbySystems.push(...cellSystems.filter(s => s.id !== system.id));
+          }
+        }
+      }
+      
+      return nearbySystems;
+    };
+    
+    // First check for explicit connections in the API data
+    for (const system of systems) {
       if (system.connections && system.connections.length > 0) {
+        hasExplicitConnections = true;
+        
         system.connections.forEach(targetId => {
           const targetSystem = systems.find(s => s.id === targetId);
           if (targetSystem) {
@@ -74,35 +115,45 @@ export async function fetchSystemConnections(): Promise<SystemConnection[]> {
             });
           }
         });
-      } else {
-        // If no explicit connections, find closest neighbors (this is a fallback)
-        // In a production app, you'd want to get proper stargate data from EVE API
-        const MAX_SYSTEMS_TO_CHECK = 20;
-        const MAX_DISTANCE = 1000000000000; // Max distance for a connection in game units
+      }
+    }
+    
+    // If no explicit connections were found, create them based on proximity
+    if (!hasExplicitConnections) {
+      console.log("No explicit connections found in API data, generating based on proximity");
+      
+      // For each system, find its closest neighbors
+      for (const system of systems) {
+        // Get potential nearby systems using our grid
+        const potentialNeighbors = getNearbySystemsFromGrid(system);
         
-        // Get systems sorted by distance
-        const systemsByDistance = [...systems]
-          .filter(s => s.id !== system.id) // Don't connect to self
-          .map(s => {
-            const distance = calculateDistance(system.position, s.position);
-            return { system: s, distance };
-          })
+        // Calculate exact distances to each potential neighbor
+        const neighborsWithDistances = potentialNeighbors.map(neighbor => ({
+          system: neighbor,
+          distance: calculateDistance(system.position, neighbor.position)
+        }));
+        
+        // Sort by distance and take the closest 2-4 systems
+        const closestNeighbors = neighborsWithDistances
           .sort((a, b) => a.distance - b.distance)
-          .slice(0, MAX_SYSTEMS_TO_CHECK);
+          .slice(0, 4);
         
-        // Connect to 1-3 closest systems within max distance
-        const connectionsToAdd = Math.min(
-          3, 
-          systemsByDistance.filter(s => s.distance < MAX_DISTANCE).length
-        );
-        
-        systemsByDistance.slice(0, connectionsToAdd).forEach(({ system: targetSystem, distance }) => {
-          connections.push({
-            sourceId: system.id,
-            targetId: targetSystem.id,
-            distance: distance,
-            gateType: 'Standard Gate'
-          });
+        // Create connections to closest neighbors
+        closestNeighbors.forEach(({ system: neighbor, distance }) => {
+          // Check if this connection already exists
+          const connectionExists = connections.some(
+            conn => (conn.sourceId === system.id && conn.targetId === neighbor.id) ||
+                    (conn.sourceId === neighbor.id && conn.targetId === system.id)
+          );
+          
+          if (!connectionExists) {
+            connections.push({
+              sourceId: system.id,
+              targetId: neighbor.id,
+              distance: distance,
+              gateType: 'Standard Gate'
+            });
+          }
         });
       }
     }

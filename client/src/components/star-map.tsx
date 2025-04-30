@@ -226,9 +226,9 @@ export function StarMap({
         .text(system.name);
     });
     
-    // Add zoom and pan functionality
+    // Add zoom and pan functionality with expanded zoom range
     const zoom = d3.zoom()
-      .scaleExtent([0.5, 5])
+      .scaleExtent([0.3, 10]) // Allow higher zoom level and wider zoom range
       .on("zoom", (event) => {
         connectionGroup.attr("transform", event.transform);
         if (routeGroup) routeGroup.attr("transform", event.transform);

@@ -26,6 +26,7 @@ export function getRiskCategory(riskScore: number): "safe" | "warning" | "danger
 
 /**
  * Calculates coordinates for visualizing a solar system on a 2D map
+ * with better spacing for EVE Frontier systems
  */
 export function calculateMapCoordinates(
   systems: SolarSystem[]
@@ -46,22 +47,32 @@ export function calculateMapCoordinates(
     maxZ = Math.max(maxZ, system.position.z);
   });
   
-  // Normalize coordinates to 0-1 range
-  const normalizeX = (x: number) => (x - minX) / (maxX - minX || 1);
-  const normalizeY = (y: number) => (y - minY) / (maxY - minY || 1);
-  const normalizeZ = (z: number) => (z - minZ) / (maxZ - minZ || 1);
-  
-  // Project 3D coordinates to 2D
-  // Using a simple projection where X and Z determine screen position
-  systems.forEach(system => {
-    const nx = normalizeX(system.position.x);
-    const ny = normalizeY(system.position.y);
-    const nz = normalizeZ(system.position.z);
+  // Use logarithmic scaling to better handle the extreme ranges of EVE API coordinates
+  // This helps spread out systems that would otherwise be too close together
+  const scaleLog = (value: number, min: number, max: number) => {
+    // Handle potential negative values by shifting to positive range
+    const shifted = value - min + 1; // +1 to avoid log(0)
+    const shiftedMax = max - min + 1;
     
-    // Project to 2D - we'll use X coordinate directly and
-    // combine Y and Z for the Y coordinate with a weighting
-    const x = nx;
-    const y = (ny * 0.3) + (nz * 0.7); // Weighted average
+    // Use logarithmic scaling for better distribution
+    return Math.log(shifted) / Math.log(shiftedMax);
+  };
+  
+  // Project 3D coordinates to 2D with better scaling
+  systems.forEach(system => {
+    // Apply log scaling to better distribute systems
+    const nx = scaleLog(system.position.x, minX, maxX);
+    const ny = scaleLog(system.position.y, minY, maxY);
+    const nz = scaleLog(system.position.z, minZ, maxZ);
+    
+    // Use a different projection to increase spacing
+    // Add small random offsets to prevent perfect overlaps
+    const randomOffset = () => (Math.random() - 0.5) * 0.02; // Small random offset
+    
+    // Use a combination of coordinates with buffer spacing
+    // Padding the edges (0.1 to 0.9 instead of 0 to 1) to ensure systems aren't on the edge
+    const x = 0.1 + (nx * 0.8) + randomOffset();
+    const y = 0.1 + ((ny * 0.3) + (nz * 0.7)) * 0.8 + randomOffset();
     
     coordinatesMap.set(system.id, { x, y });
   });
@@ -134,11 +145,11 @@ export function generateNodeSizes(
   };
   
   // Generate sizes based on normalized connection counts
-  // Size range from 5 to 15
+  // Size range from 8 to 20 for better visibility
   systems.forEach(system => {
     const connectionCount = connectionCounts.get(system.id) || 0;
     const normalizedCount = normalizeCount(connectionCount);
-    const size = 5 + normalizedCount * 10;
+    const size = 8 + normalizedCount * 12; // Increase the minimum size and range
     sizesMap.set(system.id, size);
   });
   
