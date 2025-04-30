@@ -259,14 +259,25 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
                 
                 // Handle clicking on an alternative route card
                 const handleAlternativeSelect = () => {
-                  if (altRoute && onAlternativeRouteSelect) {
-                    onAlternativeRouteSelect(altRoute);
-                    
-                    // Show a toast notification
-                    toast({
-                      title: `Selected ${alt.name}`,
-                      description: `Now showing the ${alt.risk < 0.3 ? 'safer' : 'faster'} route option`
-                    });
+                  if (onAlternativeRouteSelect) {
+                    // Check if we have a full route object available
+                    if (altRoute) {
+                      onAlternativeRouteSelect(altRoute);
+                      
+                      // Show a toast notification
+                      toast({
+                        title: `Selected ${alt.name}`,
+                        description: `Now showing the ${alt.risk < 0.3 ? 'safer' : 'faster'} route option`
+                      });
+                    } else {
+                      // Debug what information is available in the alt object
+                      console.log("Alternative route selected:", alt);
+                      toast({
+                        variant: "destructive",
+                        title: "Cannot select route",
+                        description: "Detailed route information is not available for this alternative"
+                      });
+                    }
                   }
                 };
                 
@@ -274,7 +285,7 @@ export function RouteDetails({ route, onAlternativeRouteSelect }: RouteDetailsPr
                   <div 
                     key={index}
                     className="bg-muted bg-opacity-30 rounded-lg p-4 cursor-pointer hover:bg-opacity-50 hover:bg-primary/5 transition-colors border border-transparent hover:border-primary/30"
-                    onClick={altRoute ? handleAlternativeSelect : undefined}
+                    onClick={handleAlternativeSelect}
                     style={{ opacity: altRoute ? 1 : 0.7 }}
                     title={altRoute ? `Switch to ${alt.name}` : "Route data not available"}
                   >

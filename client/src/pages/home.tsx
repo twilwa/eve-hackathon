@@ -149,6 +149,33 @@ export default function Home() {
               onAlternativeRouteSelect={(alternativeRoute) => {
                 // When an alternative route is selected, update the displayed route
                 setSelectedRoute(alternativeRoute);
+                
+                // Check if the route has full route data
+                if (alternativeRoute.jumps && alternativeRoute.jumps.length > 0) {
+                  // Find first and last jump to determine start and end systems
+                  const firstJump = alternativeRoute.jumps[0];
+                  const lastJump = alternativeRoute.jumps[alternativeRoute.jumps.length - 1];
+                  
+                  // Find the corresponding start and end systems
+                  const newStartSystem = systems?.find(s => s.id === firstJump.fromSystemId);
+                  const newEndSystem = systems?.find(s => s.id === lastJump.toSystemId);
+                  
+                  if (newStartSystem && newEndSystem) {
+                    // Update the start and end systems to match the new route
+                    setStartSystem(newStartSystem);
+                    setEndSystem(newEndSystem);
+                    
+                    // Optionally, recalculate alternatives from this new route
+                    // This will use the risk aversion that was used to create the alternative
+                    calculateRouteMutation({
+                      startSystemId: newStartSystem.id,
+                      endSystemId: newEndSystem.id,
+                      // Use a different risk aversion based on which alternative was selected
+                      riskAversion: alternativeRoute.averageRisk < 0.4 ? 80 : 20 // High number = safety priority
+                    });
+                  }
+                }
+                
                 toast({
                   title: "Alternative Route Selected",
                   description: `Showing the alternative route with ${alternativeRoute.totalJumps} jumps and ${alternativeRoute.averageRisk.toFixed(2)} risk.`
