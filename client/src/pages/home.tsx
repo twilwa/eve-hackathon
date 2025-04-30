@@ -15,6 +15,8 @@ import type { SolarSystem, RouteResponse } from "@shared/schema";
 
 export default function Home() {
   const [selectedRoute, setSelectedRoute] = useState<RouteResponse | null>(null);
+  const [startSystem, setStartSystem] = useState<SolarSystem | null>(null);
+  const [endSystem, setEndSystem] = useState<SolarSystem | null>(null);
   const { toast } = useToast();
   
   // Fetch solar systems

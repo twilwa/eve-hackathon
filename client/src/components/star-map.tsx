@@ -22,6 +22,9 @@ interface StarMapProps {
   riskData: RiskData[];
   selectedRoute: RouteResponse | null;
   isLoading: boolean;
+  startSystem: SolarSystem | null;
+  endSystem: SolarSystem | null;
+  onSystemSelect: (system: SolarSystem) => void;
 }
 
 export function StarMap({ 
@@ -29,7 +32,10 @@ export function StarMap({
   connections, 
   riskData, 
   selectedRoute,
-  isLoading 
+  isLoading,
+  startSystem,
+  endSystem,
+  onSystemSelect
 }: StarMapProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,33 +193,55 @@ export function StarMap({
         jump => jump.fromSystemId === system.id || jump.toSystemId === system.id
       );
       
-      // Is this system a start or end point?
-      const isStartOrEnd = selectedRoute?.jumps.length ? (
+      // Check if this system is currently selected as start or end
+      const isSelectedStart = startSystem && startSystem.id === system.id;
+      const isSelectedEnd = endSystem && endSystem.id === system.id;
+      
+      // Is this system a start or end point in a calculated route?
+      const isRouteStartOrEnd = selectedRoute?.jumps.length ? (
         system.id === selectedRoute.jumps[0].fromSystemId || 
         system.id === selectedRoute.jumps[selectedRoute.jumps.length - 1].toSystemId
       ) : false;
       
-      // Determine node size - larger for route systems
+      // Determine node size - larger for route systems and selected systems
       const baseSize = nodeSizes.get(system.id) || 7;
-      const size = isInRoute ? baseSize * 1.2 : baseSize;
+      const size = isInRoute || isSelectedStart || isSelectedEnd ? baseSize * 1.3 : baseSize;
       
       // Create system group
       const systemNode = systemGroup.append("g")
         .attr("class", "star-system")
         .attr("data-system-id", system.id)
         .attr("transform", `translate(${x}, ${y})`)
-        .attr("cursor", "pointer");
+        .attr("cursor", "pointer")
+        .on("click", () => {
+          // Find the corresponding system object
+          const clickedSystem = systems.find(s => s.id === system.id);
+          if (clickedSystem) {
+            onSystemSelect(clickedSystem);
+          }
+        });
+      
+      // Add selection indicator for start/end systems (outer ring)
+      if (isSelectedStart || isSelectedEnd) {
+        systemNode.append("circle")
+          .attr("r", size + 3)
+          .attr("fill", "none")
+          .attr("stroke", isSelectedStart ? "hsl(var(--primary))" : "hsl(var(--secondary))")
+          .attr("stroke-width", 2)
+          .attr("stroke-dasharray", isSelectedStart ? "none" : "4,2");
+      }
       
       // Add outer circle (risk indicator)
       systemNode.append("circle")
         .attr("r", size)
         .attr("fill", fillColor)
-        .attr("filter", isStartOrEnd ? "url(#glow)" : null);
+        .attr("filter", (isRouteStartOrEnd || isSelectedStart || isSelectedEnd) ? "url(#glow)" : null);
       
       // Add inner circle (core)
       systemNode.append("circle")
         .attr("r", size / 2)
-        .attr("fill", "#fff");
+        .attr("fill", isSelectedStart ? "hsl(var(--primary))" : 
+                      isSelectedEnd ? "hsl(var(--secondary))" : "#fff");
       
       // Add system name
       systemNode.append("text")
@@ -221,9 +249,30 @@ export function StarMap({
         .attr("y", size + 8)
         .attr("text-anchor", "middle")
         .attr("fill", "hsl(var(--foreground))")
-        .attr("font-size", isInRoute ? 11 : 9)
-        .attr("font-weight", isInRoute ? 500 : 400)
+        .attr("font-size", (isInRoute || isSelectedStart || isSelectedEnd) ? 11 : 9)
+        .attr("font-weight", (isInRoute || isSelectedStart || isSelectedEnd) ? 600 : 400)
         .text(system.name);
+      
+      // Add selection label if it's a start or end system
+      if (isSelectedStart) {
+        systemNode.append("text")
+          .attr("x", 0)
+          .attr("y", -size - 5)
+          .attr("text-anchor", "middle")
+          .attr("fill", "hsl(var(--primary))")
+          .attr("font-size", 10)
+          .attr("font-weight", 600)
+          .text("START");
+      } else if (isSelectedEnd) {
+        systemNode.append("text")
+          .attr("x", 0)
+          .attr("y", -size - 5)
+          .attr("text-anchor", "middle")
+          .attr("fill", "hsl(var(--secondary))")
+          .attr("font-size", 10)
+          .attr("font-weight", 600)
+          .text("END");
+      }
     });
     
     // Add zoom and pan functionality with further expanded zoom range
@@ -238,7 +287,7 @@ export function StarMap({
     
     svg.call(zoom as any);
     
-  }, [systems, connections, riskData, selectedRoute]);
+  }, [systems, connections, riskData, selectedRoute, startSystem, endSystem, onSystemSelect]);
   
   // Handle Zoom In with more aggressive scaling
   const handleZoomIn = () => {
