@@ -17,7 +17,6 @@ export default function Home() {
   const [selectedRoute, setSelectedRoute] = useState<RouteResponse | null>(null);
   const [startSystem, setStartSystem] = useState<SolarSystem | null>(null);
   const [endSystem, setEndSystem] = useState<SolarSystem | null>(null);
-  const [riskAversion, setRiskAversion] = useState<number>(50); // Default to 50% balanced risk aversion
   const { toast } = useToast();
   
   // Fetch solar systems
@@ -127,8 +126,6 @@ export default function Home() {
               endSystem={endSystem}
               onStartSystemSelect={setStartSystem}
               onEndSystemSelect={setEndSystem}
-              riskAversion={riskAversion} 
-              onRiskAversionChange={setRiskAversion}
             />
           </div>
           
@@ -150,32 +147,12 @@ export default function Home() {
             <RouteDetails 
               route={selectedRoute} 
               onAlternativeRouteSelect={(alternativeRoute) => {
-                // When an alternative route is selected, we need to:
-                // 1. Update the displayed route
-                // 2. Recalculate new alternative routes from this route
-                
-                // First, store the selected alternative as our current route 
+                // When an alternative route is selected, update the displayed route
                 setSelectedRoute(alternativeRoute);
-                
-                // Now, generate new alternatives by calling the API with the same parameters
-                // but with a different risk aversion based on which alternative was selected
-                if (startSystem && endSystem) {
-                  const isSelectingSaferRoute = alternativeRoute.averageRisk < (selectedRoute?.averageRisk || 0.5);
-                  const newRiskAversion = isSelectingSaferRoute ? 
-                    Math.min(100, riskAversion + 20) : // Increase risk aversion (safer)
-                    Math.max(0, riskAversion - 20);    // Decrease risk aversion (faster)
-                  
-                  // Update the risk aversion slider value
-                  setRiskAversion(newRiskAversion);
-                  
-                  // Recalculate the route with new parameters
-                  handleCalculateRoute(startSystem, endSystem, newRiskAversion);
-                  
-                  toast({
-                    title: isSelectingSaferRoute ? "Safer Route Selected" : "Faster Route Selected",
-                    description: `Risk aversion adjusted to ${newRiskAversion}%. Looking for even ${isSelectingSaferRoute ? 'safer' : 'faster'} alternatives.`
-                  });
-                }
+                toast({
+                  title: "Alternative Route Selected",
+                  description: `Showing the alternative route with ${alternativeRoute.totalJumps} jumps and ${alternativeRoute.averageRisk.toFixed(2)} risk.`
+                });
               }}
             />
           </div>
