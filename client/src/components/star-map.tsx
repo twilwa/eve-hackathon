@@ -226,9 +226,9 @@ export function StarMap({
         .text(system.name);
     });
     
-    // Add zoom and pan functionality with expanded zoom range
+    // Add zoom and pan functionality with further expanded zoom range
     const zoom = d3.zoom()
-      .scaleExtent([0.3, 10]) // Allow higher zoom level and wider zoom range
+      .scaleExtent([0.2, 20]) // Allow much higher zoom level for dense clusters
       .on("zoom", (event) => {
         connectionGroup.attr("transform", event.transform);
         if (routeGroup) routeGroup.attr("transform", event.transform);
@@ -240,22 +240,24 @@ export function StarMap({
     
   }, [systems, connections, riskData, selectedRoute]);
   
-  // Handle Zoom In
+  // Handle Zoom In with more aggressive scaling
   const handleZoomIn = () => {
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
     const currentZoom = zoom;
-    svg.transition().call((d3.zoom() as any).scaleBy, 1.2);
-    setZoom(currentZoom * 1.2);
+    // Use stronger zoom factor (2.0 instead of 1.2) to quickly zoom into clustered areas
+    svg.transition().call((d3.zoom() as any).scaleBy, 2.0);
+    setZoom(currentZoom * 2.0);
   };
   
-  // Handle Zoom Out
+  // Handle Zoom Out with more aggressive scaling
   const handleZoomOut = () => {
     if (!svgRef.current) return;
     const svg = d3.select(svgRef.current);
     const currentZoom = zoom;
-    svg.transition().call((d3.zoom() as any).scaleBy, 0.8);
-    setZoom(currentZoom * 0.8);
+    // Use stronger zoom out factor (0.5 instead of 0.8) to quickly zoom out from dense clusters
+    svg.transition().call((d3.zoom() as any).scaleBy, 0.5);
+    setZoom(currentZoom * 0.5);
   };
   
   // Handle Reset Zoom/Pan

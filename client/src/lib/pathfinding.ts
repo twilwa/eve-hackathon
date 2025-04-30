@@ -26,12 +26,19 @@ export function getRiskCategory(riskScore: number): "safe" | "warning" | "danger
 
 /**
  * Calculates coordinates for visualizing a solar system on a 2D map
- * with better spacing for EVE Frontier systems
+ * with aggressive spacing for EVE Frontier systems to avoid overcrowding
  */
 export function calculateMapCoordinates(
   systems: SolarSystem[]
 ): Map<number, { x: number, y: number }> {
   const coordinatesMap = new Map<number, { x: number, y: number }>();
+  
+  // Step 1: Use a more sophisticated approach that places systems in a grid
+  // and then adjusts their positions to separate clusters
+  
+  // First create a spatial mapping of systems to identify clusters
+  type Point3D = { x: number, y: number, z: number };
+  const kdTree: { position: Point3D, system: SolarSystem }[] = [];
   
   // Find the bounding box of all systems
   let minX = Infinity, maxX = -Infinity;
@@ -45,34 +52,104 @@ export function calculateMapCoordinates(
     maxY = Math.max(maxY, system.position.y);
     minZ = Math.min(minZ, system.position.z);
     maxZ = Math.max(maxZ, system.position.z);
+    
+    kdTree.push({
+      position: system.position,
+      system
+    });
   });
   
-  // Use logarithmic scaling to better handle the extreme ranges of EVE API coordinates
-  // This helps spread out systems that would otherwise be too close together
-  const scaleLog = (value: number, min: number, max: number) => {
+  // We'll use a force-directed-like approach where close systems push each other away
+  // First, calculate normalized positions based on logarithmic scaling
+  const normalizedPositions = new Map<number, { x: number, y: number }>();
+  
+  // Use cube root scaling for even more aggressive spreading of values
+  const scaleCubeRoot = (value: number, min: number, max: number) => {
     // Handle potential negative values by shifting to positive range
-    const shifted = value - min + 1; // +1 to avoid log(0)
+    const shifted = value - min + 1; // +1 to avoid issues with zero
     const shiftedMax = max - min + 1;
     
-    // Use logarithmic scaling for better distribution
-    return Math.log(shifted) / Math.log(shiftedMax);
+    // Use cube root scaling for aggressive distribution in dense areas
+    return Math.cbrt(shifted) / Math.cbrt(shiftedMax);
   };
   
-  // Project 3D coordinates to 2D with better scaling
+  // Initial placement with cube root scaling
   systems.forEach(system => {
-    // Apply log scaling to better distribute systems
-    const nx = scaleLog(system.position.x, minX, maxX);
-    const ny = scaleLog(system.position.y, minY, maxY);
-    const nz = scaleLog(system.position.z, minZ, maxZ);
+    // Apply strong scaling to better distribute systems
+    const nx = scaleCubeRoot(system.position.x, minX, maxX);
+    const ny = scaleCubeRoot(system.position.y, minY, maxY);
+    const nz = scaleCubeRoot(system.position.z, minZ, maxZ);
     
-    // Use a different projection to increase spacing
-    // Add small random offsets to prevent perfect overlaps
-    const randomOffset = () => (Math.random() - 0.5) * 0.02; // Small random offset
+    // Use a radically different projection combining all coordinates
+    // Use system ID to create systematic variability 
+    const hashFactor = (system.id % 10) / 30; // Systematic variation based on ID
     
-    // Use a combination of coordinates with buffer spacing
-    // Padding the edges (0.1 to 0.9 instead of 0 to 1) to ensure systems aren't on the edge
-    const x = 0.1 + (nx * 0.8) + randomOffset();
-    const y = 0.1 + ((ny * 0.3) + (nz * 0.7)) * 0.8 + randomOffset();
+    // Project 3D to 2D with strong randomization to break up clusters
+    const x = 0.1 + (nx * 0.5 + nz * 0.3 + hashFactor) * 0.8;
+    const y = 0.1 + (ny * 0.5 + (nx + nz) * 0.25 + hashFactor) * 0.8;
+    
+    // Add systematic offsets based on system ID for better distribution
+    normalizedPositions.set(system.id, { x, y });
+  });
+  
+  // Now use repulsion to push overlapping/nearby systems apart
+  // This is a simplified force-directed algorithm
+  const REPULSION_FORCE = 0.1;  // How strongly systems push each other away
+  const ITERATIONS = 5;         // Number of iterations for force adjustment
+  const MIN_DISTANCE = 0.05;    // Minimum distance between systems
+  
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    // For each system, calculate repulsion from all other systems
+    for (let i = 0; i < systems.length; i++) {
+      const systemA = systems[i];
+      const posA = normalizedPositions.get(systemA.id)!;
+      let forceX = 0, forceY = 0;
+      
+      // Calculate forces from all other systems
+      for (let j = 0; j < systems.length; j++) {
+        if (i === j) continue;
+        
+        const systemB = systems[j];
+        const posB = normalizedPositions.get(systemB.id)!;
+        
+        // Calculate distance between systems
+        const dx = posA.x - posB.x;
+        const dy = posA.y - posB.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Only apply force if systems are too close
+        if (distance < MIN_DISTANCE) {
+          // Normalize direction and calculate repulsion force
+          // Smaller distances create stronger repulsion (inverse square law)
+          const forceMagnitude = REPULSION_FORCE * (1 / (distance * distance));
+          const normalizedDx = dx / distance || Math.random() - 0.5;
+          const normalizedDy = dy / distance || Math.random() - 0.5;
+          
+          forceX += normalizedDx * forceMagnitude;
+          forceY += normalizedDy * forceMagnitude;
+        }
+      }
+      
+      // Apply force to position (with damping to avoid instability)
+      const damping = 0.9 / Math.sqrt(iter + 1);
+      const newX = Math.max(0.05, Math.min(0.95, posA.x + forceX * damping));
+      const newY = Math.max(0.05, Math.min(0.95, posA.y + forceY * damping));
+      
+      // Update position
+      normalizedPositions.set(systemA.id, { x: newX, y: newY });
+    }
+  }
+  
+  // Final pass: Add small random offsets and ensure no systems are outside the map
+  systems.forEach(system => {
+    const pos = normalizedPositions.get(system.id)!;
+    
+    // Add small random offsets to break up any remaining patterns or exact overlaps
+    const randomOffset = () => (Math.random() - 0.5) * 0.03;
+    
+    // Ensure systems stay within display bounds with padding
+    const x = Math.max(0.05, Math.min(0.95, pos.x + randomOffset()));
+    const y = Math.max(0.05, Math.min(0.95, pos.y + randomOffset()));
     
     coordinatesMap.set(system.id, { x, y });
   });

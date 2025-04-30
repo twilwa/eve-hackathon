@@ -133,10 +133,11 @@ export async function fetchSystemConnections(): Promise<SystemConnection[]> {
           distance: calculateDistance(system.position, neighbor.position)
         }));
         
-        // Sort by distance and take the closest 2-4 systems
+        // Sort by distance and take the closest 3-5 systems to ensure better connectivity
+        // This will create more connections and make the map easier to navigate
         const closestNeighbors = neighborsWithDistances
           .sort((a, b) => a.distance - b.distance)
-          .slice(0, 4);
+          .slice(0, 5); // Increased from 4 to 5 for better connectivity
         
         // Create connections to closest neighbors
         closestNeighbors.forEach(({ system: neighbor, distance }) => {
