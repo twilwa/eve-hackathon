@@ -141,14 +141,16 @@ export function ScoutJobModal() {
 
   // Search for systems (from)
   const { data: fromSystemResults } = useQuery({
-    queryKey: ["/api/systems/search", fromSystemSearch],
+    queryKey: ["/api/systems/search", { query: fromSystemSearch }],
     enabled: fromSystemSearch.length > 2,
+    queryFn: () => searchSolarSystems(fromSystemSearch)
   });
 
   // Search for systems (to)
   const { data: toSystemResults } = useQuery({
-    queryKey: ["/api/systems/search", toSystemSearch],
+    queryKey: ["/api/systems/search", { query: toSystemSearch }],
     enabled: toSystemSearch.length > 2,
+    queryFn: () => searchSolarSystems(toSystemSearch)
   });
 
   // Fetch available jobs
@@ -421,7 +423,7 @@ export function ScoutJobModal() {
                   name="reward"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Reward (ISK)</FormLabel>
+                      <FormLabel>Reward (Lux)</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <DollarSign className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -429,7 +431,7 @@ export function ScoutJobModal() {
                         </div>
                       </FormControl>
                       <FormDescription>
-                        The amount of ISK to reward the scout upon completion.
+                        The amount of Lux to reward the scout upon completion.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -493,7 +495,7 @@ export function ScoutJobModal() {
                           <div className="flex gap-2 items-center">
                             <Badge variant="outline">
                               <DollarSign className="h-3 w-3 mr-1" /> 
-                              {job.reward.toLocaleString()}
+                              {job.reward.toLocaleString()} Lux
                             </Badge>
                             {formatJobStatus(job.status)}
                           </div>
@@ -564,7 +566,7 @@ export function ScoutJobModal() {
                             <div className="flex gap-2 items-center">
                               <Badge variant="outline">
                                 <DollarSign className="h-3 w-3 mr-1" /> 
-                                {job.reward.toLocaleString()}
+                                {job.reward.toLocaleString()} Lux
                               </Badge>
                               {formatJobStatus(job.status)}
                             </div>

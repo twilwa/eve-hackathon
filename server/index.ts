@@ -1,23 +1,49 @@
-import express, { type Request, Response, NextFunction } from "express";
-import http from "http";
+import express, { type Request, type Response, type NextFunction } from "express";
+import * as http from "node:http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import * as net from "node:net";
+import type * as net from "node:net";
 import { initializeDatabase } from "./db";
 import { jobExpiryService } from "./services/job-expiry";
+import { WebSocketService, setWebSocketService } from "./services/websocket";
+import { riskUpdateService } from "./services/risk-update-service";
+import { jobNotificationService } from "./services/job-notification-service";
+import { systemDetailsService } from "./services/system-details-service";
+import cors from "cors";
+
+// Define the error type
+interface ServerError extends Error {
+	status?: number;
+	statusCode?: number;
+}
 
 const app = express();
+
+// CORS configuration
+const corsOptions = {
+	origin: process.env.ALLOWED_ORIGINS ? 
+		process.env.ALLOWED_ORIGINS.split(',') : 
+		['http://localhost:5173'],
+	methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization'],
+	credentials: true,
+	maxAge: 86400 // 24 hours
+};
+
+// Apply CORS middleware before other middleware
+app.use(cors(corsOptions));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Logging middleware (remains the same)
+// Logging middleware
 app.use((req, res, next) => {
 	const start = Date.now();
 	const path = req.path;
-	let capturedJsonResponse: Record<string, any> | undefined = undefined;
+	let capturedJsonResponse: Record<string, unknown> | undefined = undefined;
 
 	const originalResJson = res.json;
-	res.json = function (bodyJson, ...args) {
+	res.json = (bodyJson, ...args) => {
 		capturedJsonResponse = bodyJson;
 		return originalResJson.apply(res, [bodyJson, ...args]);
 	};
@@ -31,7 +57,7 @@ app.use((req, res, next) => {
 			}
 
 			if (logLine.length > 80) {
-				logLine = logLine.slice(0, 79) + "…";
+				logLine = `${logLine.slice(0, 79)}…`;
 			}
 
 			log(logLine);
@@ -47,16 +73,19 @@ app.use((req, res, next) => {
 		await initializeDatabase();
 		log("Database initialized successfully");
 	} catch (error) {
-		log("Database initialization failed:", error);
+		log("Database initialization failed:", String(error));
 		process.exit(1);
 	}
 
 	await registerRoutes(app);
 
 	// Start job expiry service
-	jobExpiryService.start();
+	jobExpiryService.startExpiryChecks();
 
-	app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+	// Start system details service to fetch entity data
+	systemDetailsService.startScheduledUpdates();
+
+	app.use((err: ServerError, _req: Request, res: Response, _next: NextFunction) => {
 		const status = err.status || err.statusCode || 500;
 		const message = err.message || "Internal Server Error";
 		log(`Error: ${status} - ${message}`);
@@ -69,6 +98,14 @@ app.use((req, res, next) => {
 	});
 
 	const server = http.createServer(app);
+	
+	// Initialize WebSocket service with the HTTP server
+	const wsService = new WebSocketService(server);
+	// Make websocketService available from the imported module using the setter
+	setWebSocketService(wsService);
+
+	// The risk update service and job notification service don't need
+	// explicit initialization as they are initialized when imported
 
 	if (app.get("env") === "development") {
 		await setupVite(app, server);
@@ -76,77 +113,59 @@ app.use((req, res, next) => {
 		serveStatic(app);
 	}
 
-	const tryListen = async (
-		serverInstance: http.Server,
-		startPort: number,
-		maxAttempts: number = 10,
-	) => {
-		const host = "0.0.0.0";
-		const maxPort = startPort + maxAttempts - 1;
+	// Start the server
+	const PORT = process.env.PORT || 5001;
 
-		for (let port = startPort; port <= maxPort; port++) {
-			try {
-				await new Promise<void>((resolve, reject) => {
-					const onError = (err: NodeJS.ErrnoException) => {
-						serverInstance.removeListener("listening", onListening); // Clean up listener
-						reject(err);
-					};
-
-					const onListening = () => {
-						serverInstance.removeListener("error", onError); // Clean up listener
-						log(`Successfully serving on http://${host}:${port}`);
-						resolve();
-					};
-
-					serverInstance.once("error", onError);
-					serverInstance.once("listening", onListening);
-
-					const opts: net.ListenOptions = { port, host };
-					if (process.platform === "linux") opts.reusePort = true; // only where it works
-					serverInstance.listen(opts);
-				});
-				// If the promise resolved, listen was successful
-				return port; // Return the successful port
-			} catch (error: any) {
-				// Log the specific error for this port
-				log(
-					`Failed to bind to port ${port}: ${error.message} (Code: ${error.code || "N/A"})`,
-				);
-
-				if (port === maxPort) {
-					// If this was the last attempt, throw error to be caught outside
-					log(`All ports up to ${maxPort} failed.`);
-					throw error; // Re-throw the last error
-				} else {
-					// Otherwise, log and continue the loop to try the next port
-					log(`Trying next port (${port + 1})...`);
-				}
-				// Allow the loop to continue implicitly
-			}
+	async function startServer() {
+		try {
+			// Initialize database first
+			await initializeDatabase();
+			
+			// Start the server
+			const server = await registerRoutes(app);
+			
+			// Initialize the WebSocket service
+			const wsService = new WebSocketService(server);
+			setWebSocketService(wsService);
+			
+			// Start the job expiry service
+			jobExpiryService.startExpiryChecks();
+			
+			// Start the system details service to fetch entity data
+			systemDetailsService.startScheduledUpdates();
+			
+			// Start server
+			server.listen(PORT, () => {
+				log(`Server listening on port ${PORT}`);
+			});
+			
+			return server;
+		} catch (err) {
+			console.error("Failed to start server:", err);
+			process.exit(1);
 		}
-		// This should theoretically not be reached if maxAttempts > 0
-		// because the last attempt's error is re-thrown.
-		// But as a safeguard:
-		throw new Error(
-			`Failed to bind to any port between ${startPort} and ${maxPort}`,
-		);
-	};
-
-	const initialPort = 5001;
-	const retryAttempts = 10; // Try ports 5000 through 5009
-	try {
-		await tryListen(server, initialPort, retryAttempts);
-	} catch (error) {
-		log(
-			`Server failed to start after trying ports ${initialPort} to ${initialPort + retryAttempts - 1}: ${error}`,
-		);
-		process.exit(1);
 	}
 
 	// Graceful shutdown
-	const gracefulShutdown = () => {
+	const gracefulShutdown = async () => {
 		log("Shutting down gracefully...");
 		jobExpiryService.stop();
+		
+		// Also stop the WebSocket service on shutdown using dynamic import
+		try {
+			const websocketModule = await import("./services/websocket");
+			if (websocketModule.websocketService) {
+				websocketModule.websocketService.shutdown();
+			}
+		} catch (error) {
+			console.error("Error shutting down WebSocket service:", error);
+		}
+		
+		// Stop risk update service
+		if (riskUpdateService) {
+			riskUpdateService.stop();
+		}
+		
 		server.close(() => {
 			log("Server closed");
 			process.exit(0);

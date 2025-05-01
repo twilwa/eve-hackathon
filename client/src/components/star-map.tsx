@@ -14,6 +14,7 @@ import {
   generateNodeSizes,
   getRiskCategory
 } from "@/lib/pathfinding";
+import { SystemDetailsTooltip } from "./system-details-tooltip";
 import type { SolarSystem, RiskData, SystemConnection, RouteResponse } from "@shared/schema";
 
 interface StarMapProps {
@@ -40,6 +41,8 @@ export function StarMap({
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
+  const [hoveredSystem, setHoveredSystem] = useState<SolarSystem | null>(null);
+  const [hoveredSystemRisk, setHoveredSystemRisk] = useState<RiskData | null>(null);
   
   useEffect(() => {
     if (!svgRef.current || systems.length === 0) return;
@@ -219,6 +222,21 @@ export function StarMap({
           if (clickedSystem) {
             onSystemSelect(clickedSystem);
           }
+        })
+        .on("mouseenter", () => {
+          // Show system details tooltip on hover
+          const hoveredSystemObj = systems.find(s => s.id === system.id);
+          const hoveredSystemRiskData = riskDataMap.get(system.id) || null;
+          
+          if (hoveredSystemObj) {
+            setHoveredSystem(hoveredSystemObj);
+            setHoveredSystemRisk(hoveredSystemRiskData);
+          }
+        })
+        .on("mouseleave", () => {
+          // Hide tooltip when mouse leaves
+          setHoveredSystem(null);
+          setHoveredSystemRisk(null);
         });
       
       // Add selection indicator for start/end systems (outer ring)
@@ -318,81 +336,55 @@ export function StarMap({
   };
   
   return (
-    <Card>
-      <CardHeader className="p-4 border-b border-slate-800 flex flex-row items-center justify-between">
-        <CardTitle>Interactive Star Map</CardTitle>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleZoomIn} 
-            title="Zoom In"
-          >
-            <ZoomIn className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleZoomOut} 
-            title="Zoom Out"
-          >
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={handleResetZoom} 
-            title="Reset View"
-          >
-            <Maximize className="h-4 w-4" />
-          </Button>
+    <Card className="h-full flex flex-col">
+      <CardHeader className="pb-0">
+        <div className="flex justify-between items-center">
+          <CardTitle>Star Map</CardTitle>
+          <div className="flex space-x-2">
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleZoomIn} 
+              title="Zoom In"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleZoomOut} 
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon" 
+              onClick={handleResetZoom} 
+              title="Reset View"
+            >
+              <Maximize className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="p-0">
-        <div 
-          className="star-map-container relative overflow-hidden"
-          ref={containerRef}
-        >
-          {/* Background nebula */}
-          <div className="absolute inset-0 bg-space-nebula" />
-          
-          {/* SVG Map */}
-          <svg 
-            ref={svgRef}
-            width="100%" 
-            height="100%" 
-            className="relative z-10"
-          >
-            {/* Map will be rendered here by D3 */}
-          </svg>
-          
-          {/* Map Legend */}
-          <div className="absolute bottom-4 left-4 bg-card bg-opacity-80 p-3 rounded-lg text-sm">
-            <div className="font-medium mb-2">Risk Level</div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-3 rounded-full bg-risk-safe"></div>
-              <span>Low (0.0-0.3)</span>
-            </div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-3 h-3 rounded-full bg-risk-warning"></div>
-              <span>Medium (0.3-0.7)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-risk-danger"></div>
-              <span>High (0.7-1.0)</span>
-            </div>
+      <CardContent className="flex-1 p-2 relative" ref={containerRef}>
+        {/* Display system details tooltip for the currently hovered system */}
+        {hoveredSystem && (
+          <div className="absolute top-4 right-4 z-10">
+            <SystemDetailsTooltip 
+              system={hoveredSystem}
+              riskData={hoveredSystemRisk || undefined}
+            >
+              <div className="hidden">Tooltip Trigger</div>
+            </SystemDetailsTooltip>
           </div>
-          
-          {/* Loading overlay */}
-          {isLoading && (
-            <div className="absolute inset-0 bg-background bg-opacity-70 flex items-center justify-center z-20">
-              <div className="flex flex-col items-center">
-                <div className="h-8 w-8 border-4 border-t-primary border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin mb-4"></div>
-                <p className="text-foreground">Calculating optimal route...</p>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
+        <svg 
+          ref={svgRef} 
+          className="w-full h-full bg-black/5 dark:bg-white/5 rounded-lg"
+          style={{ transform: `scale(${zoom})` }}
+        ></svg>
       </CardContent>
     </Card>
   );

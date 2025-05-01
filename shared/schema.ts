@@ -33,6 +33,24 @@ export const solarSystemSchema = z.object({
 
 export type SolarSystem = z.infer<typeof solarSystemSchema>;
 
+// System Entity Schema for tracking entities in a solar system
+export const systemEntitySchema = z.object({
+  name: z.string(),
+  owner: z.string().optional(),
+  type: z.string().optional(),
+});
+
+export type SystemEntity = z.infer<typeof systemEntitySchema>;
+
+// Solar System Details Schema with entity data
+export const solarSystemDetailsSchema = z.object({
+  systemId: z.number(),
+  entities: z.array(systemEntitySchema),
+  lastUpdated: z.string()
+});
+
+export type SolarSystemDetails = z.infer<typeof solarSystemDetailsSchema>;
+
 // System Connection Schema
 export const systemConnectionSchema = z.object({
   sourceId: z.number(),
@@ -152,17 +170,19 @@ export const jobs = sqliteTable('jobs', {
 });
 
 // Job insert schema with validation
-export const jobInsertSchema = createInsertSchema(jobs, {
-  fromSystemId: (schema) => schema.fromSystemId.positive(),
-  toSystemId: (schema) => schema.toSystemId.positive(),
-  reward: (schema) => schema.reward.positive(),
-  expiresAt: (schema) => schema.expiresAt.refine(
+export const jobInsertSchema = z.object({
+  fromSystemId: z.number().positive(),
+  fromSystemName: z.string().min(1),
+  toSystemId: z.number().positive(),
+  toSystemName: z.string().min(1),
+  reward: z.number().positive(),
+  expiresAt: z.string().refine(
     (date) => new Date(date) > new Date(),
     {
       message: "Expiry time must be in the future",
     }
-  ),
-}).omit({ id: true, claimedBy: true, claimedAt: true, completedAt: true, proofJson: true, status: true });
+  )
+});
 
 export const jobClaimSchema = z.object({
   scoutPubKey: z.string().min(1),

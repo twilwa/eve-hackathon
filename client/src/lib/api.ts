@@ -8,37 +8,143 @@ import type {
   Job,
   JobInsert,
   JobClaim,
-  JobComplete
+  JobComplete,
+  SolarSystemDetails
 } from "@shared/schema";
 
-// Fetch all solar systems
-export async function fetchSolarSystems() {
-  const response = await apiRequest("GET", "/api/systems");
-  return await response.json() as SolarSystem[];
+/**
+ * Fetch solar systems from the API
+ */
+export async function fetchSolarSystems(): Promise<SolarSystem[]> {
+  try {
+    const res = await apiRequest('GET', '/api/systems');
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching solar systems:', error);
+    throw new Error(`Failed to fetch solar systems: ${error}`);
+  }
 }
 
-// Search for solar systems by name
-export async function searchSolarSystems(query: string) {
-  const response = await apiRequest("GET", `/api/systems/search?query=${encodeURIComponent(query)}`);
-  return await response.json() as SolarSystem[];
+/**
+ * Fetch system connections from the API
+ */
+export async function fetchSystemConnections(): Promise<SystemConnection[]> {
+  try {
+    const res = await apiRequest('GET', '/api/connections');
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching system connections:', error);
+    throw new Error(`Failed to fetch system connections: ${error}`);
+  }
 }
 
-// Fetch all system connections (gates)
-export async function fetchSystemConnections() {
-  const response = await apiRequest("GET", "/api/connections");
-  return await response.json() as SystemConnection[];
+/**
+ * Fetch risk data from the API
+ */
+export async function fetchRiskData(): Promise<RiskData[]> {
+  try {
+    const res = await apiRequest('GET', '/api/risk');
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching risk data:', error);
+    throw new Error(`Failed to fetch risk data: ${error}`);
+  }
 }
 
-// Fetch risk data for all systems
-export async function fetchRiskData() {
-  const response = await apiRequest("GET", "/api/risk");
-  return await response.json() as RiskData[];
+/**
+ * Search for solar systems by name
+ */
+export async function searchSolarSystems(searchTerm: string): Promise<SolarSystem[]> {
+  try {
+    if (!searchTerm || searchTerm.length < 2) return [];
+    const res = await apiRequest('GET', `/api/systems/search?query=${encodeURIComponent(searchTerm)}`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error searching solar systems:', error);
+    throw new Error(`Failed to search solar systems: ${error}`);
+  }
 }
 
-// Calculate an optimal route
-export async function calculateRoute(routeRequest: RouteRequest) {
-  const response = await apiRequest("POST", "/api/route", routeRequest);
-  return await response.json() as RouteResponse;
+/**
+ * Calculate a route between two solar systems
+ */
+export async function calculateRoute(params: {
+  startSystemId: number;
+  endSystemId: number;
+  riskAversion: number;
+}): Promise<RouteResponse> {
+  try {
+    const res = await apiRequest('POST', '/api/route', params);
+    return await res.json();
+  } catch (error) {
+    console.error('Error calculating route:', error);
+    throw new Error(`Failed to calculate route: ${error}`);
+  }
+}
+
+/**
+ * Fetch all scout jobs
+ */
+export async function fetchJobs(): Promise<Job[]> {
+  try {
+    const res = await apiRequest('GET', '/api/jobs');
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching jobs:', error);
+    throw new Error(`Failed to fetch jobs: ${error}`);
+  }
+}
+
+/**
+ * Create a new scout job
+ */
+export async function createJob(job: Omit<Job, 'id' | 'createdAt' | 'updatedAt' | 'status'>): Promise<Job> {
+  try {
+    const res = await apiRequest('POST', '/api/jobs', job);
+    return await res.json();
+  } catch (error) {
+    console.error('Error creating job:', error);
+    throw new Error(`Failed to create job: ${error}`);
+  }
+}
+
+/**
+ * Accept a scout job
+ */
+export async function acceptJob(jobId: number): Promise<Job> {
+  try {
+    const res = await apiRequest('PUT', `/api/jobs/${jobId}/accept`);
+    return await res.json();
+  } catch (error) {
+    console.error('Error accepting job:', error);
+    throw new Error(`Failed to accept job: ${error}`);
+  }
+}
+
+/**
+ * Complete a scout job with simple route data (legacy)
+ */
+export async function completeScoutJob(jobId: number, routeData: unknown): Promise<Job> {
+  try {
+    const res = await apiRequest('PUT', `/api/jobs/${jobId}/complete`, { routeData });
+    return await res.json();
+  } catch (error) {
+    console.error('Error completing job:', error);
+    throw new Error(`Failed to complete job: ${error}`);
+  }
+}
+
+/**
+ * Fetch health status of the server
+ */
+export async function checkHealth(): Promise<{ status: string; timestamp: string }> {
+  try {
+    const res = await apiRequest('GET', '/api/health');
+    return await res.json();
+  } catch (error) {
+    console.error('Error checking health:', error);
+    throw new Error(`Failed to check health: ${error}`);
+  }
 }
 
 // Get data status information
@@ -58,26 +164,15 @@ export async function refreshData() {
 }
 
 // Get recent routes
-export async function getRecentRoutes(limit: number = 5) {
+export async function getRecentRoutes(limit = 5) {
   const response = await apiRequest("GET", `/api/recent-routes?limit=${limit}`);
   return await response.json() as RouteResponse[];
-}
-
-// Get API health
-export async function getApiHealth() {
-  try {
-    const response = await apiRequest("GET", "/api/health");
-    const data = await response.json();
-    return { status: "online", ...data };
-  } catch (error) {
-    return { status: "offline", error: String(error) };
-  }
 }
 
 // Jobs API
 
 // Get all jobs with optional filtering
-export async function getJobs(status?: string, page: number = 1, limit: number = 10) {
+export async function getJobs(status?: string, page = 1, limit = 10) {
   let url = `/api/jobs?page=${page}&limit=${limit}`;
   if (status) {
     url += `&status=${status}`;
@@ -97,12 +192,6 @@ export async function getJobs(status?: string, page: number = 1, limit: number =
 // Get a specific job by ID
 export async function getJob(id: number) {
   const response = await apiRequest("GET", `/api/jobs/${id}`);
-  return await response.json() as Job;
-}
-
-// Create a new job
-export async function createJob(jobData: JobInsert) {
-  const response = await apiRequest("POST", "/api/jobs", jobData);
   return await response.json() as Job;
 }
 
@@ -131,4 +220,17 @@ export async function completeJob(id: number, completeData: JobComplete, scoutPu
   }
   
   return await response.json() as Job;
+}
+
+/**
+ * Fetch details for a specific solar system by ID
+ */
+export async function fetchSolarSystemDetails(systemId: number): Promise<SolarSystemDetails> {
+  try {
+    const res = await apiRequest('GET', `/api/systems/${systemId}/details`);
+    return await res.json();
+  } catch (error) {
+    console.error(`Error fetching details for system ${systemId}:`, error);
+    throw new Error(`Failed to fetch system details: ${error}`);
+  }
 }

@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { createServer, type Server } from "http";
+import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
@@ -19,12 +19,50 @@ import {
 import { findOptimalRoute } from "./algorithms/pathfinding";
 import NodeCache from "node-cache";
 import jobsRouter from "./api/jobs";
+import { riskUpdateService } from "./services/risk-update-service";
+import { systemDetailsService } from "./services/system-details-service";
 
 // Cache for storing data with TTL
 const cache = new NodeCache({
 	stdTTL: 600, // 10 minute TTL for cached data
 	checkperiod: 120, // Check for expired keys every 2 minutes
 });
+
+// Initialize data function to load data from EVE Frontier API
+const initializeData = async (): Promise<void> => {
+	try {
+		// Check if data is already cached
+		if (
+			!cache.has("systems") ||
+			!cache.has("connections") ||
+			!cache.has("riskData")
+		) {
+			console.log("Initializing data from EVE Frontier API...");
+
+			// Fetch all required data
+			const systems = await fetchSolarSystems();
+			const standardConnections = await fetchSystemConnections();
+			const smartGates = await fetchSmartGates();
+			const riskData = await fetchKillmailData();
+
+			// Combine standard connections with smart gates
+			const allConnections = [...standardConnections, ...smartGates];
+
+			// Store in cache
+			cache.set("systems", systems);
+			cache.set("connections", allConnections);
+			cache.set("riskData", riskData);
+			cache.set("lastUpdate", new Date().toISOString());
+
+			console.log(
+				`Initialized ${systems.length} systems, ${allConnections.length} connections, and risk data`,
+			);
+		}
+	} catch (error) {
+		console.error("Error initializing data:", error);
+		throw error;
+	}
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
 	const httpServer = createServer(app);
@@ -36,42 +74,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get("/api/health", (req: Request, res: Response) => {
 		res.json({ status: "online", timestamp: new Date().toISOString() });
 	});
-
-	// Initialize data on startup (or when first needed)
-	async function initializeData() {
-		try {
-			// Check if data is already cached
-			if (
-				!cache.has("systems") ||
-				!cache.has("connections") ||
-				!cache.has("riskData")
-			) {
-				console.log("Initializing data from EVE Frontier API...");
-
-				// Fetch all required data
-				const systems = await fetchSolarSystems();
-				const standardConnections = await fetchSystemConnections();
-				const smartGates = await fetchSmartGates();
-				const riskData = await fetchKillmailData();
-
-				// Combine standard connections with smart gates
-				const allConnections = [...standardConnections, ...smartGates];
-
-				// Store in cache
-				cache.set("systems", systems);
-				cache.set("connections", allConnections);
-				cache.set("riskData", riskData);
-				cache.set("lastUpdate", new Date().toISOString());
-
-				console.log(
-					`Initialized ${systems.length} systems, ${allConnections.length} connections, and risk data`,
-				);
-			}
-		} catch (error) {
-			console.error("Error initializing data:", error);
-			throw error;
-		}
-	}
 
 	// Endpoint to get all solar systems
 	app.get("/api/systems", async (req: Request, res: Response) => {
@@ -198,12 +200,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post("/api/refresh-data", async (req: Request, res: Response) => {
 		try {
 			// Clear cache
-			cache.flushAll();
-
-			// Reinitialize data
+			cache.del("systems");
+			cache.del("connections");
+			cache.del("riskData");
+			
+			// Re-fetch all data
 			await initializeData();
-
+			
+			// Get freshly fetched risk data and broadcast update
+			const riskData = cache.get("riskData") as RiskData[];
+			
+			// Send updates via WebSocket
+			riskUpdateService.updateMultipleRiskData(riskData);
+			
 			res.json({
+				success: true,
 				message: "Data refreshed successfully",
 				timestamp: new Date().toISOString(),
 			});
@@ -216,12 +227,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Get recent routes
 	app.get("/api/recent-routes", async (req: Request, res: Response) => {
 		try {
-			const limit = parseInt(req.query.limit as string) || 5;
+			const limit = Number.parseInt(req.query.limit as string) || 5;
 			const recentRoutes = await storage.getRecentRoutes(limit);
 			res.json(recentRoutes);
 		} catch (error) {
 			console.error("Error fetching recent routes:", error);
 			res.status(500).json({ message: "Failed to fetch recent routes" });
+		}
+	});
+
+	// Endpoint to get details for a specific solar system
+	app.get("/api/systems/:id/details", async (req: Request, res: Response) => {
+		try {
+			const systemId = Number.parseInt(req.params.id);
+			
+			if (isNaN(systemId)) {
+				return res.status(400).json({ message: "Invalid system ID" });
+			}
+			
+			const systemDetails = await systemDetailsService.getSystemDetails(systemId);
+			
+			if (!systemDetails) {
+				return res.status(404).json({ message: "System details not found" });
+			}
+			
+			res.json(systemDetails);
+		} catch (error) {
+			console.error("Error fetching system details:", error);
+			res.status(500).json({ message: "Failed to fetch system details" });
 		}
 	});
 

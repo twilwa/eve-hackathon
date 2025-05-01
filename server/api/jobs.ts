@@ -8,8 +8,9 @@ import {
   jobCompleteSchema,
   type Job
 } from '@shared/schema';
-import { eq, and, desc, lt, gt } from 'drizzle-orm';
+import { eq, and, desc, lt, gt, or } from 'drizzle-orm';
 import { z } from 'zod';
+import { jobNotificationService } from '../services/job-notification-service';
 
 const router = Router();
 // TODO: fix lints, some type errors etc
@@ -85,6 +86,9 @@ router.post('/', async (req, res) => {
       createdAt: new Date().toISOString(),
     }).returning();
     
+    // Send WebSocket notification
+    jobNotificationService.notifyJobCreated(result);
+    
     res.status(201).json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -138,6 +142,9 @@ router.put('/:id/claim', async (req, res) => {
     if (!claimedJob) {
       return res.status(409).json({ message: 'Job is not available for claiming' });
     }
+    
+    // Send WebSocket notification
+    jobNotificationService.notifyJobClaimed(claimedJob);
     
     res.json(claimedJob);
   } catch (error) {
@@ -212,6 +219,9 @@ router.put('/:id/complete', async (req, res) => {
       .where(eq(jobs.id, id))
       .returning();
     
+    // Send WebSocket notification
+    jobNotificationService.notifyJobCompleted(completedJob);
+    
     res.json(completedJob);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -225,15 +235,38 @@ router.put('/:id/complete', async (req, res) => {
 // Export the job expiry handler for background processing
 export const processExpiredJobs = async () => {
   const now = new Date().toISOString();
-  const expiredJobs = await db.update(jobs)
-    .set({ status: JobStatus.EXPIRED })
-    .where(
-      and(
-        lt(jobs.expiresAt, now),
-        eq(jobs.status, JobStatus.OPEN)
+  
+  // Find jobs that have expired but are still in OPEN or CLAIMED status
+  const expiredJobs = await db.select().from(jobs).where(
+    and(
+      lt(jobs.expiresAt, now),
+      or(
+        eq(jobs.status, JobStatus.OPEN),
+        eq(jobs.status, JobStatus.CLAIMED)
       )
     )
-    .returning();
+  );
+  
+  if (expiredJobs.length === 0) {
+    return 0;
+  }
+  
+  // Update all expired jobs to EXPIRED status
+  const updates = expiredJobs.map(job => 
+    db.update(jobs)
+      .set({ status: JobStatus.EXPIRED })
+      .where(eq(jobs.id, job.id))
+      .returning()
+  );
+  
+  const updatedJobs = await Promise.all(updates);
+  
+  // Send WebSocket notifications for each expired job
+  for (const [updatedJob] of updatedJobs) {
+    if (updatedJob) {
+      jobNotificationService.notifyJobExpired(updatedJob);
+    }
+  }
   
   return expiredJobs.length;
 };

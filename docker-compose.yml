@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # Server service
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: eve-starmap-server
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - NODE_ENV=production
+      - PORT=5001
+      - ALLOWED_ORIGINS=http://localhost:80,http://localhost,http://localhost:5173
+      - EVE_FRONTIER_API_URL=${EVE_FRONTIER_API_URL:-https://world-api-nova.live.tech.evefrontier.com}
+      - EVE_FRONTIER_API_KEY=${EVE_FRONTIER_API_KEY:-}
+    volumes:
+      - sqlite-data:/app/sqlite.db
+      - sqlite-data-shm:/app/sqlite.db-shm
+      - sqlite-data-wal:/app/sqlite.db-wal
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - eve-starmap-network
+
+  # Client service
+  client:
+    build:
+      context: .
+      dockerfile: Dockerfile.client
+    container_name: eve-starmap-client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      - API_URL=http://server:5001
+    depends_on:
+      - server
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:80/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - eve-starmap-network
+
+# Persistent volumes
+volumes:
+  sqlite-data:
+  sqlite-data-shm:
+  sqlite-data-wal:
+
+# Docker networks
+networks:
+  eve-starmap-network:
+    driver: bridge 

@@ -1,0 +1,51 @@
+# Dockerfile for the client component
+FROM node:18-alpine AS builder
+
+# Create app directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY pnpm-lock.yaml ./
+COPY pnpm-workspace.yaml ./
+COPY client/package*.json ./client/
+
+# Install dependencies
+RUN npm install -g pnpm
+RUN pnpm install --frozen-lockfile
+
+# Copy source files
+COPY client/ ./client/
+COPY shared/ ./shared/
+
+# Build the client application
+RUN cd client && pnpm build
+
+# Production stage with Nginx
+FROM nginx:alpine AS production
+
+# Copy Nginx configuration
+COPY client/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copy built files from builder stage
+COPY --from=builder /app/client/dist /usr/share/nginx/html
+
+# Set up environment variable defaults
+ENV API_URL=http://server:5001
+
+# Create configuration script to replace environment variables in JS files at runtime
+RUN echo "#!/bin/sh\n\
+for file in /usr/share/nginx/html/assets/*.js; do\n\
+  sed -i 's|API_URL_PLACEHOLDER|'\$API_URL'|g' \$file\n\
+done\n\
+nginx -g 'daemon off;'" > /docker-entrypoint.sh && \
+chmod +x /docker-entrypoint.sh
+
+# Expose port
+EXPOSE 80
+
+# Set up healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 CMD wget --no-verbose --tries=1 --spider http://localhost:80/ || exit 1
+
+# Run Nginx
+CMD ["/docker-entrypoint.sh"] 

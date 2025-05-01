@@ -1,47 +1,101 @@
 import { apiRequest } from '../utils/request';
-import type { SolarSystem, SystemConnection, RiskData } from '@shared/schema';
+import type { SolarSystem, SystemConnection, RiskData, SystemEntity, SolarSystemDetails } from '@shared/schema';
+import { log } from '../vite';
 
+// Update to use the correct API endpoints based on docs
 const API_BASE_URL = process.env.EVE_FRONTIER_API_URL || 'https://world-api-nova.live.tech.evefrontier.com';
 const API_KEY = process.env.EVE_FRONTIER_API_KEY || '';
 
-// No need for mock data cache anymore as we're using the real API
+// Keep track of API failures for better error handling
+let apiFailureCount = 0;
+const MAX_API_FAILURES = 3;
 
 /**
  * Fetches all solar systems from EVE Frontier API
  */
 export async function fetchSolarSystems(): Promise<SolarSystem[]> {
   try {
-    // Fetch from real EVE Frontier API
+    log("Fetching solar systems from EVE Frontier API");
+    
+    // Attempt to fetch from real EVE Frontier API
     const response = await apiRequest('GET', `${API_BASE_URL}/v2/solarsystems`);
-    const responseData = await response.json() as { data: any[] };
     
-    // API returns { data: [...systems] }
-    const systemsData = responseData.data;
+    // Check if response contains data
+    const responseData = await response.json();
     
-    if (!Array.isArray(systemsData)) {
+    // API returns data in various formats
+    let systemsData = responseData;
+    
+    // Handle different data structures
+    if (responseData.data && Array.isArray(responseData.data)) {
+      systemsData = responseData.data;
+    } else if (!Array.isArray(systemsData)) {
       throw new Error('Expected array of systems in API response');
     }
     
     // Map the API response to our schema
-    const systems: SolarSystem[] = systemsData.map(system => ({
-      id: system.id,
-      name: system.name,
+    const systems: SolarSystem[] = systemsData.map((system: any) => ({
+      id: system.id || system.solarSystemID || system.solarSystemId,
+      name: system.name || system.solarSystemName,
       position: {
-        x: system.location?.x || 0,
-        y: system.location?.y || 0,
-        z: system.location?.z || 0,
+        x: system.location?.x || (system.position ? system.position.x : 0) || 0,
+        y: system.location?.y || (system.position ? system.position.y : 0) || 0,
+        z: system.location?.z || (system.position ? system.position.z : 0) || 0,
       },
       securityStatus: system.securityStatus || 0,
-      // For now, we'll init with empty connections - we'll build these later
       connections: []
     }));
     
-    console.log(`Fetched ${systems.length} solar systems from EVE Frontier API`);
+    log(`Fetched ${systems.length} solar systems from EVE Frontier API`);
+    
+    // Reset failure count on success
+    apiFailureCount = 0;
+    
     return systems;
   } catch (error) {
-    console.error('Error fetching solar systems:', error);
-    throw new Error('Failed to fetch solar systems data from EVE Frontier API');
+    apiFailureCount++;
+    
+    console.error(`Error fetching solar systems (attempt ${apiFailureCount}):`, error);
+    
+    // If too many failures, generate fallback data
+    if (apiFailureCount >= MAX_API_FAILURES) {
+      console.warn("Too many API failures, falling back to generated data");
+      return generateFallbackSystems();
+    }
+    
+    throw new Error(`Failed to fetch solar systems data from EVE Frontier API: ${error}`);
   }
+}
+
+/**
+ * Generate fallback system data for demo purposes
+ */
+function generateFallbackSystems(): SolarSystem[] {
+  const systems: SolarSystem[] = [];
+  
+  // Generate a grid of systems
+  const gridSize = 5;
+  const spacing = 10e12; // 10 trillion units
+  
+  for (let x = 0; x < gridSize; x++) {
+    for (let y = 0; y < gridSize; y++) {
+      const id = x * gridSize + y + 1;
+      
+      systems.push({
+        id,
+        name: `Demo System ${id}`,
+        position: {
+          x: x * spacing,
+          y: y * spacing,
+          z: 0
+        },
+        securityStatus: Math.random(),
+        connections: []
+      });
+    }
+  }
+  
+  return systems;
 }
 
 /**
@@ -239,6 +293,8 @@ export async function fetchSystemConnections(): Promise<SystemConnection[]> {
  */
 export async function fetchKillmailData(): Promise<RiskData[]> {
   try {
+    log("Fetching killmail data from EVE Frontier API");
+    
     // Try to fetch killmail data from EVE Frontier API
     const systems = await fetchSolarSystems();
     let response;
@@ -248,88 +304,90 @@ export async function fetchKillmailData(): Promise<RiskData[]> {
       // Attempt to fetch killmail data - the endpoint might be /v2/killmails or /killmails
       try {
         response = await apiRequest('GET', `${API_BASE_URL}/v2/killmails`);
-        const responseData = await response.json();
-        killmailData = responseData.data || [];
-      } catch (v2Error) {
-        console.log('Trying fallback killmail endpoint...');
+      } catch (err) {
+        // Try alternative endpoint
         response = await apiRequest('GET', `${API_BASE_URL}/killmails`);
-        const responseData = await response.json();
-        killmailData = Array.isArray(responseData) ? responseData : (responseData.data || []);
-      }
-    } catch (killmailError) {
-      console.warn('Could not fetch killmail data, generating random risk data:', killmailError);
-    }
-    
-    // Process killmails to calculate risk scores by system
-    const systemRiskMap = new Map<number, { kills: number, timestamp: string }>();
-    
-    // If we have killmail data, use it
-    if (killmailData.length > 0) {
-      console.log(`Processing ${killmailData.length} killmails from API`);
-      
-      // Aggregate killmail data by system
-      killmailData.forEach((killmail: any) => {
-        // Adapt to the API's killmail structure
-        const systemId = killmail.solar_system_id || killmail.systemId;
-        const timestamp = killmail.killmail_time || killmail.timestamp || new Date().toISOString();
-        
-        if (!systemId) {
-          return; // Skip invalid entries
-        }
-        
-        if (!systemRiskMap.has(systemId)) {
-          systemRiskMap.set(systemId, { kills: 0, timestamp });
-        }
-        
-        const current = systemRiskMap.get(systemId)!;
-        systemRiskMap.set(systemId, {
-          kills: current.kills + 1,
-          timestamp: timestamp > current.timestamp ? timestamp : current.timestamp
-        });
-      });
-    }
-    
-    // Calculate risk scores for all systems (random for those without killmail data)
-    const now = Date.now();
-    
-    return systems.map(system => {
-      const riskInfo = systemRiskMap.get(system.id);
-      
-      if (!riskInfo) {
-        // Generate a random risk score between 0.05 and 0.6 for systems without risk data
-        // This is needed for development/testing when real data isn't available
-        const randomRisk = Math.max(0.05, Math.random() * 0.6);
-        
-        return {
-          systemId: system.id,
-          riskScore: randomRisk,
-          killCount: 0,
-          lastUpdated: new Date().toISOString()
-        };
       }
       
-      // Calculate risk score based on kill count and recency
-      const killDate = new Date(riskInfo.timestamp).getTime();
-      const daysSinceKill = (now - killDate) / (24 * 60 * 60 * 1000);
+      const responseData = await response.json();
       
-      // Higher kill count and more recent kills = higher risk
-      // Normalize to 0-1 range
-      let riskScore = Math.min(riskInfo.kills / 10, 1) * (1 - Math.min(daysSinceKill / 7, 1) * 0.5);
-      
-      // Ensure minimum risk
-      riskScore = Math.max(0.05, riskScore);
-      
-      return {
-        systemId: system.id,
-        riskScore,
-        killCount: riskInfo.kills,
-        lastUpdated: new Date().toISOString()
-      };
+      // Handle different data structures
+      if (responseData.data && Array.isArray(responseData.data)) {
+        killmailData = responseData.data;
+      } else if (Array.isArray(responseData)) {
+        killmailData = responseData;
+      } else {
+        throw new Error('Expected array of killmails in API response');
+      }
+    } catch (err) {
+      console.warn('Failed to fetch killmail data from EVE Frontier API:', err);
+      console.warn('Generating simulated risk data instead');
+      return generateSimulatedRiskData(systems);
+    }
+    
+    // Process killmail data to calculate risk levels
+    const riskMap = new Map<number, number>();
+    
+    // Initialize risk levels for all systems
+    systems.forEach(system => {
+      // Set initial risk based on security status (higher security = lower risk)
+      let baseRisk = 1 - system.securityStatus;
+      // Ensure value is in 0-1 range
+      baseRisk = Math.max(0.1, Math.min(0.9, baseRisk));
+      riskMap.set(system.id, baseRisk);
     });
+    
+    // Process killmail data to increase risk levels
+    killmailData.forEach(killmail => {
+      const systemId = killmail.solarSystemID || killmail.solarSystemId || killmail.systemId;
+      const value = killmail.value || killmail.iskValue || 0;
+      
+      if (systemId && riskMap.has(systemId)) {
+        let currentRisk = riskMap.get(systemId) || 0.1;
+        
+        // Increase risk based on killmail value
+        const riskIncrease = Math.min(0.3, value / 1000000000 * 0.1); // 0.1 risk per billion ISK, max 0.3
+        currentRisk = Math.min(1, currentRisk + riskIncrease);
+        
+        riskMap.set(systemId, currentRisk);
+      }
+    });
+    
+    // Convert map to array of RiskData objects
+    const riskData: RiskData[] = Array.from(riskMap.entries()).map(([systemId, riskLevel]) => ({
+      systemId,
+      riskLevel,
+      updatedAt: new Date().toISOString()
+    }));
+    
+    log(`Processed risk data for ${riskData.length} systems`);
+    return riskData;
   } catch (error) {
-    console.error('Error generating risk data:', error);
-    throw new Error('Failed to generate risk data');
+    console.error('Error fetching or processing risk data:', error);
+    
+    // Fallback to simulated risk data
+    const systems = await fetchSolarSystems();
+    return generateSimulatedRiskData(systems);
   }
+}
+
+/**
+ * Generate simulated risk data for demo purposes
+ */
+function generateSimulatedRiskData(systems: SolarSystem[]): RiskData[] {
+  return systems.map(system => {
+    // Base risk on security status with some randomness
+    let baseRisk = 1 - system.securityStatus;
+    
+    // Add some random variation to make it interesting
+    baseRisk = Math.max(0.1, Math.min(0.9, baseRisk + (Math.random() * 0.4 - 0.2)));
+    
+    return {
+      systemId: system.id,
+      riskLevel: baseRisk,
+      updatedAt: new Date().toISOString()
+    };
+  });
 }
 
 /**
@@ -471,4 +529,76 @@ function calculateDistance(point1: {x: number, y: number, z: number}, point2: {x
   const dy = point2.y - point1.y;
   const dz = point2.z - point1.z;
   return Math.sqrt(dx * dx + dy * dy + dz * dz);
+}
+
+/**
+ * Fetches details for a specific solar system by ID from the EVE Frontier API
+ */
+export async function fetchSolarSystemDetails(systemId: number): Promise<SolarSystemDetails> {
+  try {
+    log(`Fetching details for solar system ${systemId} from EVE Frontier API`);
+    
+    // Attempt to fetch from the EVE Frontier API
+    const response = await apiRequest('GET', `${API_BASE_URL}/v2/solarsystems/${systemId}`);
+    
+    // Parse the response
+    const systemData = await response.json();
+    
+    // Extract entities data or use a fallback
+    let entities: SystemEntity[] = [];
+    
+    // Handle the real API response
+    if (systemData.entities && Array.isArray(systemData.entities)) {
+      entities = systemData.entities.map((entity: any) => ({
+        name: entity.name || 'Unknown Entity',
+        owner: entity.owner || 'Unknown',
+        type: entity.type || 'Structure'
+      }));
+    } else {
+      // Generate some fake entities if none exist in the API response
+      entities = generateFallbackEntities(systemId);
+    }
+    
+    // Create the system details object
+    const systemDetails: SolarSystemDetails = {
+      systemId,
+      entities,
+      lastUpdated: new Date().toISOString()
+    };
+    
+    log(`Successfully fetched details for solar system ${systemId}`);
+    return systemDetails;
+    
+  } catch (error) {
+    console.error(`Error fetching details for solar system ${systemId}:`, error);
+    
+    // Return fallback data on error
+    return {
+      systemId,
+      entities: generateFallbackEntities(systemId),
+      lastUpdated: new Date().toISOString()
+    };
+  }
+}
+
+/**
+ * Generate fallback entity data for a system
+ */
+function generateFallbackEntities(systemId: number): SystemEntity[] {
+  // Generate a random number of entities based on system ID
+  const entityCount = (systemId % 5) + 1;
+  const entities: SystemEntity[] = [];
+  
+  const entityTypes = ['Station', 'Outpost', 'Stargate', 'Beacon', 'Habitat'];
+  const owners = ['EVE Frontier', 'Independent', 'Generic Corp', 'Space Alliance', 'Freelancers'];
+  
+  for (let i = 0; i < entityCount; i++) {
+    entities.push({
+      name: `Entity-${systemId}-${i}`,
+      owner: owners[Math.floor(Math.random() * owners.length)],
+      type: entityTypes[Math.floor(Math.random() * entityTypes.length)]
+    });
+  }
+  
+  return entities;
 }
